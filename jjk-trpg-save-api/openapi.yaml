@@ -1,0 +1,82 @@
+openapi: 3.1.0
+info:
+  title: JJK TRPG Campaign Save API
+  version: 1.0.0
+  description: Loads and saves compact campaign state. It does not resolve combat or roll dice.
+servers:
+  - url: https://REPLACE-WITH-YOUR-DEPLOYED-DOMAIN
+paths:
+  /campaigns/{campaignId}:
+    get:
+      operationId: loadCampaignContext
+      summary: Load the latest campaign context
+      parameters:
+        - name: campaignId
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        "200":
+          description: Campaign loaded successfully
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/CampaignRecord"}
+        "404": {description: Campaign does not exist}
+    put:
+      operationId: saveCampaignContext
+      summary: Save the latest compact campaign state
+      parameters:
+        - name: campaignId
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [state]
+              properties:
+                state: {$ref: "#/components/schemas/CampaignState"}
+      responses:
+        "200":
+          description: Campaign saved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: {type: boolean}
+                  campaign_id: {type: string}
+                  updated_at: {type: string}
+components:
+  schemas:
+    CampaignRecord:
+      type: object
+      properties:
+        campaign_id: {type: string}
+        updated_at: {type: string}
+        state: {$ref: "#/components/schemas/CampaignState"}
+    CampaignState:
+      type: object
+      description: Compact dynamic state; do not include the full conversation transcript.
+      properties:
+        player: {type: object, additionalProperties: true}
+        scene: {type: object, additionalProperties: true}
+        quests:
+          type: array
+          items: {type: object, additionalProperties: true}
+        relationships: {type: object, additionalProperties: true}
+        campaign_flags: {type: object, additionalProperties: true}
+        canon_changes:
+          type: array
+          items: {type: object, additionalProperties: true}
+        important_facts:
+          type: array
+          items: {type: string}
+        recent_events:
+          type: array
+          items: {type: string}
+        rolling_summary: {type: string}
+      additionalProperties: true
