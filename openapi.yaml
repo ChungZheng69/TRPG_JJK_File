@@ -6,7 +6,7 @@ info:
     Stateful TRPG engine for Custom GPT. The server is authoritative for dice,
     HP/CE changes, dynamic enemy/ability numeric values, and combat resolution.
 servers:
-  - url: https://REPLACE-WITH-YOUR-DEPLOYED-DOMAIN
+  - url: https://jjk-trpg-engine.onrender.com
 security:
   - bearerAuth: []
 paths:
