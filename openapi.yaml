@@ -1,68 +1,184 @@
 openapi: 3.1.0
 info:
-  title: JJK TRPG Campaign Save API
-  version: 1.0.0
-  description: Loads and saves compact campaign state. It does not resolve combat or roll dice.
+  title: JJK TRPG Engine API
+  version: 2.0.0
+  description: >-
+    Stateful TRPG engine for Custom GPT. The server is authoritative for dice,
+    HP/CE changes, dynamic enemy/ability numeric values, and combat resolution.
 servers:
   - url: https://REPLACE-WITH-YOUR-DEPLOYED-DOMAIN
+security:
+  - bearerAuth: []
 paths:
   /campaigns/{campaignId}:
     get:
       operationId: loadCampaignContext
-      summary: Load the latest campaign context
+      summary: Load the latest authoritative campaign state
       parameters:
-        - name: campaignId
-          in: path
-          required: true
-          schema: {type: string}
+        - $ref: '#/components/parameters/CampaignId'
       responses:
-        "200":
-          description: Campaign loaded successfully
+        '200':
+          description: Campaign loaded
           content:
             application/json:
-              schema: {$ref: "#/components/schemas/CampaignRecord"}
-        "404": {description: Campaign does not exist}
-    put:
-      operationId: saveCampaignContext
-      summary: Save the latest compact campaign state
+              schema: {$ref: '#/components/schemas/CampaignRecord'}
+        '404': {description: Campaign does not exist}
+
+  /campaigns/{campaignId}/initialize:
+    post:
+      operationId: initializeCampaign
+      summary: Create a campaign if it does not exist
       parameters:
-        - name: campaignId
-          in: path
-          required: true
-          schema: {type: string}
+        - $ref: '#/components/parameters/CampaignId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                overwrite: {type: boolean, default: false}
+                state: {type: object, additionalProperties: true}
+      responses:
+        '201': {description: Campaign created}
+        '409': {description: Campaign already exists}
+
+  /campaigns/{campaignId}/narrative:
+    patch:
+      operationId: updateCampaignNarrative
+      summary: Update narrative-only campaign fields; does not directly set HP, CE, enemy stats, or combat math
+      parameters:
+        - $ref: '#/components/parameters/CampaignId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/NarrativeUpdate'}
+      responses:
+        '200': {description: Narrative state updated}
+
+  /campaigns/{campaignId}/check:
+    post:
+      operationId: runAttributeCheck
+      summary: Roll an authoritative attribute check using 20 stat = 1 positive d20, maximum 5 dice, keep highest
+      parameters:
+        - $ref: '#/components/parameters/CampaignId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CheckRequest'}
+      responses:
+        '200': {description: Check resolved}
+
+  /campaigns/{campaignId}/resources/change:
+    post:
+      operationId: applyResourceChange
+      summary: Apply an authoritative HP or CE operation outside normal combat resolution
+      parameters:
+        - $ref: '#/components/parameters/CampaignId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ResourceChangeRequest'}
+      responses:
+        '200': {description: Resource changed}
+
+  /campaigns/{campaignId}/enemies:
+    post:
+      operationId: createDynamicEnemy
+      summary: Create a dynamic enemy concept; the engine generates balanced numeric stats from its grade
+      parameters:
+        - $ref: '#/components/parameters/CampaignId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateEnemyRequest'}
+      responses:
+        '200': {description: Enemy created}
+
+  /campaigns/{campaignId}/abilities:
+    post:
+      operationId: createDynamicAbility
+      summary: Create and attach a dynamic ability; the engine chooses numeric cost and power from balance tiers
+      parameters:
+        - $ref: '#/components/parameters/CampaignId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateAbilityRequest'}
+      responses:
+        '200': {description: Ability created}
+
+  /campaigns/{campaignId}/combat/start:
+    post:
+      operationId: startCombat
+      summary: Start combat and calculate turn order
+      parameters:
+        - $ref: '#/components/parameters/CampaignId'
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [state]
+              required: [enemy_ids]
               properties:
-                state: {$ref: "#/components/schemas/CampaignState"}
+                enemy_ids:
+                  type: array
+                  minItems: 1
+                  items: {type: string}
+                ally_ids:
+                  type: array
+                  items: {type: string}
       responses:
-        "200":
-          description: Campaign saved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success: {type: boolean}
-                  campaign_id: {type: string}
-                  updated_at: {type: string}
+        '200': {description: Combat started}
+
+  /campaigns/{campaignId}/combat/action:
+    post:
+      operationId: resolveCombatAction
+      summary: Resolve one combat turn, including check, CE cost, damage/healing, HP update, defeat, and turn advance
+      parameters:
+        - $ref: '#/components/parameters/CampaignId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [actor_id, target_id]
+              properties:
+                actor_id: {type: string}
+                target_id: {type: string}
+                ability_id: {type: string, default: basic_attack}
+      responses:
+        '200': {description: Combat action resolved}
+
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  parameters:
+    CampaignId:
+      name: campaignId
+      in: path
+      required: true
+      schema: {type: string, pattern: '^[a-zA-Z0-9_-]{1,80}$'}
   schemas:
     CampaignRecord:
       type: object
       properties:
         campaign_id: {type: string}
         updated_at: {type: string}
-        state: {$ref: "#/components/schemas/CampaignState"}
-    CampaignState:
+        state: {type: object, additionalProperties: true}
+
+    NarrativeUpdate:
       type: object
-      description: Compact dynamic state; do not include the full conversation transcript.
       properties:
-        player: {type: object, additionalProperties: true}
         scene: {type: object, additionalProperties: true}
         quests:
           type: array
@@ -79,4 +195,65 @@ components:
           type: array
           items: {type: string}
         rolling_summary: {type: string}
-      additionalProperties: true
+      additionalProperties: false
+
+    CheckRequest:
+      type: object
+      required: [actor_id, attribute, difficulty]
+      properties:
+        actor_id: {type: string}
+        attribute:
+          type: string
+          enum: [physical, technique, mind]
+        difficulty: {type: integer, minimum: 1, maximum: 30}
+        bonus_dice: {type: integer, minimum: 0, maximum: 5, default: 0}
+        penalty_dice: {type: integer, minimum: 0, maximum: 5, default: 0}
+        reason: {type: string}
+
+    ResourceChangeRequest:
+      type: object
+      required: [target_id, operation, amount]
+      properties:
+        target_id: {type: string}
+        operation:
+          type: string
+          enum: [damage, heal, spend_ce, restore_ce]
+        amount: {type: number, exclusiveMinimum: 0}
+        reason: {type: string}
+
+    CreateEnemyRequest:
+      type: object
+      required: [name, grade]
+      properties:
+        name: {type: string}
+        grade:
+          type: string
+          enum: [Grade 4, Grade 3, Grade 2, Grade 1, Special Grade]
+        role: {type: string, description: e.g. balanced, skirmisher, tank, controller}
+        theme: {type: string}
+        persistence:
+          type: string
+          enum: [scene, campaign]
+          default: scene
+        notes: {type: string}
+
+    CreateAbilityRequest:
+      type: object
+      required: [owner_id, name, type, attribute, power, cost]
+      properties:
+        owner_id: {type: string}
+        name: {type: string}
+        type:
+          type: string
+          enum: [attack, heal, utility]
+        attribute:
+          type: string
+          enum: [physical, technique, mind]
+        power:
+          type: string
+          enum: [low, medium, high, extreme]
+        cost:
+          type: string
+          enum: [none, low, medium, high, extreme]
+        effect_kind: {type: string}
+        description: {type: string}

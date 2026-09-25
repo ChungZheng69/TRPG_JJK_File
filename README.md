@@ -1,69 +1,41 @@
-# JJK TRPG Save API
+# JJK TRPG Engine API v2
 
-这个项目只有两个接口：
+这是旧 Save API 的向后兼容升级版。
 
-- `GET /campaigns/{campaignId}`：读取存档
-- `PUT /campaigns/{campaignId}`：保存完整的紧凑状态
+## 主要能力
+- 读取 campaign
+- 初始化 campaign
+- Narrative-only 更新
+- 属性检定：每 20 属性 = 1d20，最多 5d20，取最高
+- HP / CE 权威修改
+- AI 提供概念、Engine 生成数值的动态敌人
+- AI 提供概念、Engine 生成数值的动态技能
+- 回合制战斗：命中、CE、伤害/治疗、HP、击倒、回合推进
 
-它不投骰，也不处理战斗。
-
-## 各部分放在哪里
-
-### 你的服务器 / GitHub 项目
-
-这些文件运行在 ChatGPT 外部：
-- `server.js`
-- `package.json`
-- `.env`
-- `data/main.json`
-
-把整个文件夹部署到能够提供公开 HTTPS 地址的服务器。
-
-### Custom GPT → Configure → Actions
-
-把 `openapi.yaml` 内容贴进去。
-
-先把：
-`https://REPLACE-WITH-YOUR-DEPLOYED-DOMAIN`
-
-替换成你的真实 HTTPS 地址。
-
-### Custom GPT → Instructions
-
-追加 `CUSTOM_GPT_INSTRUCTIONS_ADDON.md` 的内容。
-
-## 本地测试
-
-1. 安装 Node.js 20+
-2. 把 `.env.example` 复制为 `.env`
-3. 设置一个很长的 `TRPG_API_KEY`
-4. 执行：
+## 快速开始
 
 ```bash
+cp .env.example .env
 npm install
+npm run check
 npm start
 ```
 
-测试：
+健康检查：
 
 ```bash
 curl http://localhost:3000/health
 ```
 
-```bash
-curl -H "Authorization: Bearer YOUR_KEY" http://localhost:3000/campaigns/main
-```
+详细升级步骤请看 `MIGRATION_GUIDE_CN.md`。
 
-## 连接 Custom GPT
+## Custom GPT
 
-1. 在 GPT 编辑器中往下滚到 **Actions**。
-2. 选择 **Create new action**。
-3. Authentication 选择 **API Key**。
-4. 类型选择 **Bearer**。
-5. 输入与 `TRPG_API_KEY` 相同的值。
-6. 贴入修改后的 `openapi.yaml`。
-7. 在 Preview 测试两个 action。
+1. 在 `openapi.yaml` 替换 Render HTTPS 域名。
+2. Actions 使用 Bearer API key。
+3. 把 `CUSTOM_GPT_INSTRUCTIONS_ADDON.md` 内容放进 GPT Instructions。
 
-## 储存提醒
+## 数据存储
 
-内附 JSON 适合本地与早期测试。很多云端主机的普通本地文件在重启或重新部署时可能丢失；长期使用时应配置持久磁盘或小型持久数据库。
+默认使用 `DATA_DIR=./data` 的 JSON 文件。
+长期部署请使用持久磁盘或后续升级到数据库，否则云服务重启/重新部署可能导致本地文件丢失。
