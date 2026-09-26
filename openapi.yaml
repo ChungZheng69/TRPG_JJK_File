@@ -1,12 +1,12 @@
 openapi: 3.1.0
 info:
   title: JJK TRPG Engine API
-  version: 2.0.0
+  version: 2.0.1
   description: >-
     Stateful TRPG engine for Custom GPT. The server is authoritative for dice,
     HP/CE changes, dynamic enemy/ability numeric values, and combat resolution.
 servers:
-  - url: https://jjk-trpg-engine.onrender.com
+  - url: https://trpg-jjk-file.onrender.com
 security:
   - bearerAuth: []
 paths:
@@ -15,7 +15,13 @@ paths:
       operationId: loadCampaignContext
       summary: Load the latest authoritative campaign state
       parameters:
-        - $ref: '#/components/parameters/CampaignId'
+        - name: campaignId
+          in: path
+          required: true
+          description: Campaign save ID, for example main or test_v2.
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9_-]{1,80}$'
       responses:
         '200':
           description: Campaign loaded
@@ -29,7 +35,13 @@ paths:
       operationId: initializeCampaign
       summary: Create a campaign if it does not exist
       parameters:
-        - $ref: '#/components/parameters/CampaignId'
+        - name: campaignId
+          in: path
+          required: true
+          description: Campaign save ID, for example main or test_v2.
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9_-]{1,80}$'
       requestBody:
         required: false
         content:
@@ -48,7 +60,13 @@ paths:
       operationId: updateCampaignNarrative
       summary: Update narrative-only campaign fields; does not directly set HP, CE, enemy stats, or combat math
       parameters:
-        - $ref: '#/components/parameters/CampaignId'
+        - name: campaignId
+          in: path
+          required: true
+          description: Campaign save ID, for example main or test_v2.
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9_-]{1,80}$'
       requestBody:
         required: true
         content:
@@ -62,7 +80,13 @@ paths:
       operationId: runAttributeCheck
       summary: Roll an authoritative attribute check using 20 stat = 1 positive d20, maximum 5 dice, keep highest
       parameters:
-        - $ref: '#/components/parameters/CampaignId'
+        - name: campaignId
+          in: path
+          required: true
+          description: Campaign save ID, for example main or test_v2.
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9_-]{1,80}$'
       requestBody:
         required: true
         content:
@@ -76,7 +100,13 @@ paths:
       operationId: applyResourceChange
       summary: Apply an authoritative HP or CE operation outside normal combat resolution
       parameters:
-        - $ref: '#/components/parameters/CampaignId'
+        - name: campaignId
+          in: path
+          required: true
+          description: Campaign save ID, for example main or test_v2.
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9_-]{1,80}$'
       requestBody:
         required: true
         content:
@@ -90,7 +120,13 @@ paths:
       operationId: createDynamicEnemy
       summary: Create a dynamic enemy concept; the engine generates balanced numeric stats from its grade
       parameters:
-        - $ref: '#/components/parameters/CampaignId'
+        - name: campaignId
+          in: path
+          required: true
+          description: Campaign save ID, for example main or test_v2.
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9_-]{1,80}$'
       requestBody:
         required: true
         content:
@@ -104,7 +140,13 @@ paths:
       operationId: createDynamicAbility
       summary: Create and attach a dynamic ability; the engine chooses numeric cost and power from balance tiers
       parameters:
-        - $ref: '#/components/parameters/CampaignId'
+        - name: campaignId
+          in: path
+          required: true
+          description: Campaign save ID, for example main or test_v2.
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9_-]{1,80}$'
       requestBody:
         required: true
         content:
@@ -118,7 +160,13 @@ paths:
       operationId: startCombat
       summary: Start combat and calculate turn order
       parameters:
-        - $ref: '#/components/parameters/CampaignId'
+        - name: campaignId
+          in: path
+          required: true
+          description: Campaign save ID, for example main or test_v2.
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9_-]{1,80}$'
       requestBody:
         required: true
         content:
@@ -142,7 +190,13 @@ paths:
       operationId: resolveCombatAction
       summary: Resolve one combat turn, including check, CE cost, damage/healing, HP update, defeat, and turn advance
       parameters:
-        - $ref: '#/components/parameters/CampaignId'
+        - name: campaignId
+          in: path
+          required: true
+          description: Campaign save ID, for example main or test_v2.
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9_-]{1,80}$'
       requestBody:
         required: true
         content:
@@ -162,12 +216,6 @@ components:
     bearerAuth:
       type: http
       scheme: bearer
-  parameters:
-    CampaignId:
-      name: campaignId
-      in: path
-      required: true
-      schema: {type: string, pattern: '^[a-zA-Z0-9_-]{1,80}$'}
   schemas:
     CampaignRecord:
       type: object
