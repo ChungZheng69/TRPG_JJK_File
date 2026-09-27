@@ -1,0 +1,20 @@
+{
+  "name": "jjk-trpg-engine-api",
+  "version": "2.1.0",
+  "private": true,
+  "description": "Stateful JJK TRPG Engine for Custom GPT with explicit player setup.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "check": "node --check server.js && node --check src/rules.js && node --check src/storage.js && node --check src/engine.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  }
+}
