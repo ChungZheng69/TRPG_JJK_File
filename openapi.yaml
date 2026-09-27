@@ -661,6 +661,10 @@ paths:
         '200':
           description: Combat action resolved
 components:
+  schemas:
+    GenericObject:
+      type: object
+      additionalProperties: true
   securitySchemes:
     bearerAuth:
       type: http
