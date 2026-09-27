@@ -1,55 +1,53 @@
 openapi: 3.1.0
 info:
   title: JJK TRPG Engine API
-  version: 2.1.1
-  description: Stateful TRPG engine for Custom GPT. All referenced input schemas are fully inlined for Custom GPT Actions compatibility. The server remains authoritative for player stats, dice, HP/CE, dynamic enemy/ability values, and combat.
+  version: 2.2.0
+  description: >-
+    Stateful JJK TRPG engine for Custom GPT. Character creation uses flat
+    request fields so Custom GPT Actions can reliably see and submit every
+    player value. The engine is authoritative for stats, dice, HP/CE,
+    ability values, enemy values, and combat.
+
 servers:
-- url: https://trpg-jjk-file.onrender.com
+  - url: https://trpg-jjk-file.onrender.com
+  
 security:
-- bearerAuth: []
+  - bearerAuth: []
+
 paths:
   /campaigns/{campaignId}:
     get:
       operationId: loadCampaignContext
-      summary: Load the latest authoritative campaign state
+      summary: Load the authoritative campaign state
       parameters:
-      - name: campaignId
-        in: path
-        required: true
-        description: Campaign save ID, for example main or jjk_2018_01.
-        schema:
-          type: string
-          pattern: ^[a-zA-Z0-9_-]{1,80}$
+        - name: campaignId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9_-]{1,80}$'
       responses:
         '200':
           description: Campaign loaded
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  campaign_id:
-                    type: string
-                  updated_at:
-                    type: string
-                  state:
-                    type: object
-                    additionalProperties: true
         '404':
           description: Campaign does not exist
-  /campaigns/{campaignId}/initialize:
+
+  /campaigns/{campaignId}/character/create:
     post:
-      operationId: initializeCampaign
-      summary: Create a new campaign using the exact supplied player character
-      description: New campaigns must include player. The engine will not silently create the old test-character template. Set overwrite=true only when the user explicitly wants to reset an existing campaign.
+      operationId: createCharacterCampaign
+      summary: Create a new campaign and its authoritative player character
+      description: >-
+        ALWAYS use this action for a brand-new character/campaign.
+        All player fields are explicit top-level request fields.
+        After success, call loadCampaignContext to verify the saved state.
       parameters:
-      - name: campaignId
-        in: path
-        required: true
-        description: Campaign save ID.
-        schema:
-          type: string
-          pattern: ^[a-zA-Z0-9_-]{1,80}$
+        - name: campaignId
+          in: path
+          required: true
+          description: New campaign ID.
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9_-]{1,80}$'
       requestBody:
         required: true
         content:
@@ -57,153 +55,116 @@ paths:
             schema:
               type: object
               required:
-              - player
+                - name
+                - physical
+                - technique
+                - mind
+                - hp_max
+                - ce_max
               properties:
                 overwrite:
                   type: boolean
                   default: false
-                player:
-                  type: object
-                  required:
-                  - name
-                  - attributes
-                  - resources
-                  properties:
-                    id:
-                      type: string
-                      default: player_001
-                    name:
-                      type: string
-                    age:
-                      type: integer
-                      minimum: 0
-                      maximum: 999
-                    gender:
-                      type: string
-                    affiliation:
-                      type: string
-                    grade:
-                      type: string
-                    era:
-                      type: string
-                    appearance:
-                      type: string
-                    personality:
-                      type: string
-                    goal:
-                      type: string
-                    level:
-                      type: integer
-                      minimum: 1
-                      default: 1
-                    innate_technique:
-                      type: object
-                      description: Narrative technique concept; numeric combat abilities are created separately.
-                      additionalProperties: true
-                    attributes:
-                      type: object
-                      required:
-                      - physical
-                      - technique
-                      - mind
-                      properties:
-                        physical:
-                          type: integer
-                          minimum: 0
-                          maximum: 100
-                        technique:
-                          type: integer
-                          minimum: 0
-                          maximum: 100
-                        mind:
-                          type: integer
-                          minimum: 0
-                          maximum: 100
-                      additionalProperties: false
-                    resources:
-                      type: object
-                      required:
-                      - hp
-                      - ce
-                      properties:
-                        hp:
-                          type: object
-                          required:
-                          - current
-                          - max
-                          properties:
-                            current:
-                              type: integer
-                              minimum: 0
-                            max:
-                              type: integer
-                              minimum: 1
-                          additionalProperties: false
-                        ce:
-                          type: object
-                          required:
-                          - current
-                          - max
-                          properties:
-                            current:
-                              type: integer
-                              minimum: 0
-                            max:
-                              type: integer
-                              minimum: 1
-                          additionalProperties: false
-                      additionalProperties: false
-                    combat:
-                      type: object
-                      properties:
-                        defense_dc:
-                          type: integer
-                          minimum: 1
-                          maximum: 30
-                          default: 10
-                        speed:
-                          type: integer
-                          minimum: 0
-                          maximum: 100
-                          default: 50
-                      additionalProperties: false
-                    status:
-                      type: array
-                      items:
-                        type: string
-                    inventory:
-                      type: array
-                      items:
-                        type: string
-                  additionalProperties: false
-                scene:
-                  type: object
-                  additionalProperties: true
-                state:
-                  type: object
-                  description: Optional advanced seed for narrative fields. Do not use this instead of player.
-                  additionalProperties: true
+                  description: Use true only when the user explicitly requests a full reset.
+                player_id:
+                  type: string
+                  default: player_001
+                name:
+                  type: string
+                age:
+                  type: integer
+                  minimum: 0
+                  maximum: 999
+                gender:
+                  type: string
+                affiliation:
+                  type: string
+                grade:
+                  type: string
+                era:
+                  type: string
+                appearance:
+                  type: string
+                personality:
+                  type: string
+                goal:
+                  type: string
+                level:
+                  type: integer
+                  minimum: 1
+                  default: 1
+                physical:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                  description: Physical attribute.
+                technique:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                  description: Technique attribute.
+                mind:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                  description: Mind attribute.
+                hp_max:
+                  type: integer
+                  minimum: 1
+                hp_current:
+                  type: integer
+                  minimum: 0
+                  description: Omit to start at hp_max.
+                ce_max:
+                  type: integer
+                  minimum: 1
+                ce_current:
+                  type: integer
+                  minimum: 0
+                  description: Omit to start at ce_max.
+                defense_dc:
+                  type: integer
+                  minimum: 1
+                  maximum: 30
+                  default: 10
+                speed:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                  default: 50
+                innate_technique_name:
+                  type: string
+                innate_technique_description:
+                  type: string
+                start_date_time:
+                  type: string
+                start_location:
+                  type: string
+                start_situation:
+                  type: string
               additionalProperties: false
       responses:
         '201':
-          description: Campaign created with the supplied player
+          description: Character campaign created
         '400':
-          description: Missing or invalid player setup
+          description: Invalid or incomplete character data
         '409':
           description: Campaign already exists
-  /campaigns/{campaignId}/player/setup:
+
+  /campaigns/{campaignId}/character:
     patch:
-      operationId: configurePlayerCharacter
-      summary: Set or repair the authoritative player character outside combat
-      description: Use during character creation, migration, or an explicit player-approved respec/reset. This is the legal way to replace the old test template with the intended name, attributes, HP, CE, profile, and starting state.
+      operationId: updatePlayerCharacter
+      summary: Replace or repair the authoritative player data in an existing campaign
+      description: >-
+        Use only for character setup correction, migration, or an explicit user-approved
+        respec outside combat. This changes real engine state.
       parameters:
-      - name: campaignId
-        in: path
-        required: true
-        description: Existing Campaign ID.
-        schema:
-          type: string
-          pattern: ^[a-zA-Z0-9_-]{1,80}$
+        - name: campaignId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9_-]{1,80}$'
       requestBody:
         required: true
         content:
@@ -211,146 +172,107 @@ paths:
             schema:
               type: object
               required:
-              - player
+                - name
+                - physical
+                - technique
+                - mind
+                - hp_max
+                - ce_max
               properties:
-                player:
-                  type: object
-                  required:
-                  - name
-                  - attributes
-                  - resources
-                  properties:
-                    id:
-                      type: string
-                      default: player_001
-                    name:
-                      type: string
-                    age:
-                      type: integer
-                      minimum: 0
-                      maximum: 999
-                    gender:
-                      type: string
-                    affiliation:
-                      type: string
-                    grade:
-                      type: string
-                    era:
-                      type: string
-                    appearance:
-                      type: string
-                    personality:
-                      type: string
-                    goal:
-                      type: string
-                    level:
-                      type: integer
-                      minimum: 1
-                      default: 1
-                    innate_technique:
-                      type: object
-                      description: Narrative technique concept; numeric combat abilities are created separately.
-                      additionalProperties: true
-                    attributes:
-                      type: object
-                      required:
-                      - physical
-                      - technique
-                      - mind
-                      properties:
-                        physical:
-                          type: integer
-                          minimum: 0
-                          maximum: 100
-                        technique:
-                          type: integer
-                          minimum: 0
-                          maximum: 100
-                        mind:
-                          type: integer
-                          minimum: 0
-                          maximum: 100
-                      additionalProperties: false
-                    resources:
-                      type: object
-                      required:
-                      - hp
-                      - ce
-                      properties:
-                        hp:
-                          type: object
-                          required:
-                          - current
-                          - max
-                          properties:
-                            current:
-                              type: integer
-                              minimum: 0
-                            max:
-                              type: integer
-                              minimum: 1
-                          additionalProperties: false
-                        ce:
-                          type: object
-                          required:
-                          - current
-                          - max
-                          properties:
-                            current:
-                              type: integer
-                              minimum: 0
-                            max:
-                              type: integer
-                              minimum: 1
-                          additionalProperties: false
-                      additionalProperties: false
-                    combat:
-                      type: object
-                      properties:
-                        defense_dc:
-                          type: integer
-                          minimum: 1
-                          maximum: 30
-                          default: 10
-                        speed:
-                          type: integer
-                          minimum: 0
-                          maximum: 100
-                          default: 50
-                      additionalProperties: false
-                    status:
-                      type: array
-                      items:
-                        type: string
-                    inventory:
-                      type: array
-                      items:
-                        type: string
-                  additionalProperties: false
                 reset_abilities:
                   type: boolean
                   default: false
-                  description: If true, detach previous character abilities and keep only basic_attack before creating the new character's starting abilities.
+                player_id:
+                  type: string
+                  default: player_001
+                name:
+                  type: string
+                age:
+                  type: integer
+                  minimum: 0
+                  maximum: 999
+                gender:
+                  type: string
+                affiliation:
+                  type: string
+                grade:
+                  type: string
+                era:
+                  type: string
+                appearance:
+                  type: string
+                personality:
+                  type: string
+                goal:
+                  type: string
+                level:
+                  type: integer
+                  minimum: 1
+                  default: 1
+                physical:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                technique:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                mind:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                hp_max:
+                  type: integer
+                  minimum: 1
+                hp_current:
+                  type: integer
+                  minimum: 0
+                ce_max:
+                  type: integer
+                  minimum: 1
+                ce_current:
+                  type: integer
+                  minimum: 0
+                defense_dc:
+                  type: integer
+                  minimum: 1
+                  maximum: 30
+                  default: 10
+                speed:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                  default: 50
+                innate_technique_name:
+                  type: string
+                innate_technique_description:
+                  type: string
+                start_date_time:
+                  type: string
+                start_location:
+                  type: string
+                start_situation:
+                  type: string
               additionalProperties: false
       responses:
         '200':
-          description: Player character configured and saved
+          description: Player updated and saved
         '400':
-          description: Invalid setup or setup attempted during active combat
+          description: Invalid data or active combat
         '404':
           description: Campaign does not exist
+
   /campaigns/{campaignId}/narrative:
     patch:
       operationId: updateCampaignNarrative
       summary: Update narrative-only campaign fields
-      description: Does not directly set player stats, HP, CE, enemy stats, ability stats, or combat math.
       parameters:
-      - name: campaignId
-        in: path
-        required: true
-        schema:
-          type: string
-          pattern: ^[a-zA-Z0-9_-]{1,80}$
+        - name: campaignId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9_-]{1,80}$'
       requestBody:
         required: true
         content:
@@ -360,11 +282,25 @@ paths:
               properties:
                 scene:
                   type: object
+                  properties:
+                    date_time:
+                      type: string
+                    location:
+                      type: string
+                    situation:
+                      type: string
                   additionalProperties: true
                 quests:
                   type: array
                   items:
                     type: object
+                    properties:
+                      id:
+                        type: string
+                      title:
+                        type: string
+                      status:
+                        type: string
                     additionalProperties: true
                 relationships:
                   type: object
@@ -376,6 +312,11 @@ paths:
                   type: array
                   items:
                     type: object
+                    properties:
+                      event_id:
+                        type: string
+                      campaign_result:
+                        type: string
                     additionalProperties: true
                 important_facts:
                   type: array
@@ -390,19 +331,20 @@ paths:
               additionalProperties: false
       responses:
         '200':
-          description: Narrative state updated
+          description: Narrative updated
+
   /campaigns/{campaignId}/check:
     post:
       operationId: runAttributeCheck
       summary: Roll an authoritative attribute check
-      description: Every complete 20 stat gives 1 positive d20, maximum 5 dice, keep highest.
+      description: Every complete 20 stat gives 1 positive d20, maximum 5, keep highest.
       parameters:
-      - name: campaignId
-        in: path
-        required: true
-        schema:
-          type: string
-          pattern: ^[a-zA-Z0-9_-]{1,80}$
+        - name: campaignId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9_-]{1,80}$'
       requestBody:
         required: true
         content:
@@ -410,18 +352,15 @@ paths:
             schema:
               type: object
               required:
-              - actor_id
-              - attribute
-              - difficulty
+                - actor_id
+                - attribute
+                - difficulty
               properties:
                 actor_id:
                   type: string
                 attribute:
                   type: string
-                  enum:
-                  - physical
-                  - technique
-                  - mind
+                  enum: [physical, technique, mind]
                 difficulty:
                   type: integer
                   minimum: 1
@@ -442,37 +381,31 @@ paths:
       responses:
         '200':
           description: Check resolved
+
   /campaigns/{campaignId}/resources/change:
     post:
       operationId: applyResourceChange
       summary: Apply an authoritative HP or CE change outside normal combat
       parameters:
-      - name: campaignId
-        in: path
-        required: true
-        schema:
-          type: string
-          pattern: ^[a-zA-Z0-9_-]{1,80}$
+        - name: campaignId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9_-]{1,80}$'
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required:
-              - target_id
-              - operation
-              - amount
+              required: [target_id, operation, amount]
               properties:
                 target_id:
                   type: string
                 operation:
                   type: string
-                  enum:
-                  - damage
-                  - heal
-                  - spend_ce
-                  - restore_ce
+                  enum: [damage, heal, spend_ce, restore_ce]
                 amount:
                   type: number
                   exclusiveMinimum: 0
@@ -482,47 +415,38 @@ paths:
       responses:
         '200':
           description: Resource changed
+
   /campaigns/{campaignId}/enemies:
     post:
       operationId: createDynamicEnemy
-      summary: Create a dynamic enemy concept and let the engine generate numeric stats
+      summary: Create a dynamic enemy; the engine generates numeric stats
       parameters:
-      - name: campaignId
-        in: path
-        required: true
-        schema:
-          type: string
-          pattern: ^[a-zA-Z0-9_-]{1,80}$
+        - name: campaignId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9_-]{1,80}$'
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required:
-              - name
-              - grade
+              required: [name, grade]
               properties:
                 name:
                   type: string
                 grade:
                   type: string
-                  enum:
-                  - Grade 4
-                  - Grade 3
-                  - Grade 2
-                  - Grade 1
-                  - Special Grade
+                  enum: [Grade 4, Grade 3, Grade 2, Grade 1, Special Grade]
                 role:
                   type: string
-                  description: For example balanced, skirmisher, tank, controller.
                 theme:
                   type: string
                 persistence:
                   type: string
-                  enum:
-                  - scene
-                  - campaign
+                  enum: [scene, campaign]
                   default: scene
                 notes:
                   type: string
@@ -530,30 +454,25 @@ paths:
       responses:
         '200':
           description: Enemy created
+
   /campaigns/{campaignId}/abilities:
     post:
       operationId: createDynamicAbility
       summary: Create and attach a dynamic ability using engine balance tiers
       parameters:
-      - name: campaignId
-        in: path
-        required: true
-        schema:
-          type: string
-          pattern: ^[a-zA-Z0-9_-]{1,80}$
+        - name: campaignId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9_-]{1,80}$'
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required:
-              - owner_id
-              - name
-              - type
-              - attribute
-              - power
-              - cost
+              required: [owner_id, name, type, attribute, power, cost]
               properties:
                 owner_id:
                   type: string
@@ -561,31 +480,16 @@ paths:
                   type: string
                 type:
                   type: string
-                  enum:
-                  - attack
-                  - heal
-                  - utility
+                  enum: [attack, heal, utility]
                 attribute:
                   type: string
-                  enum:
-                  - physical
-                  - technique
-                  - mind
+                  enum: [physical, technique, mind]
                 power:
                   type: string
-                  enum:
-                  - low
-                  - medium
-                  - high
-                  - extreme
+                  enum: [low, medium, high, extreme]
                 cost:
                   type: string
-                  enum:
-                  - none
-                  - low
-                  - medium
-                  - high
-                  - extreme
+                  enum: [none, low, medium, high, extreme]
                 effect_kind:
                   type: string
                 description:
@@ -594,25 +498,25 @@ paths:
       responses:
         '200':
           description: Ability created
+
   /campaigns/{campaignId}/combat/start:
     post:
       operationId: startCombat
       summary: Start combat and calculate turn order
       parameters:
-      - name: campaignId
-        in: path
-        required: true
-        schema:
-          type: string
-          pattern: ^[a-zA-Z0-9_-]{1,80}$
+        - name: campaignId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9_-]{1,80}$'
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required:
-              - enemy_ids
+              required: [enemy_ids]
               properties:
                 enemy_ids:
                   type: array
@@ -627,27 +531,25 @@ paths:
       responses:
         '200':
           description: Combat started
+
   /campaigns/{campaignId}/combat/action:
     post:
       operationId: resolveCombatAction
       summary: Resolve one combat turn
-      description: Includes check, CE cost, damage/healing, HP update, defeat, and turn advance.
       parameters:
-      - name: campaignId
-        in: path
-        required: true
-        schema:
-          type: string
-          pattern: ^[a-zA-Z0-9_-]{1,80}$
+        - name: campaignId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9_-]{1,80}$'
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required:
-              - actor_id
-              - target_id
+              required: [actor_id, target_id]
               properties:
                 actor_id:
                   type: string
@@ -660,6 +562,7 @@ paths:
       responses:
         '200':
           description: Combat action resolved
+
 components:
   schemas: {}
   securitySchemes:
