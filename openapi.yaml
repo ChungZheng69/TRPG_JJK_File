@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: JJK TRPG Engine API
-  version: 2.3.0
+  version: 2.3.1
   description: Stateful JJK TRPG engine for Custom GPT. Character creation uses flat
     request fields so Custom GPT Actions can reliably see and submit every player
     value. The engine is authoritative for stats, dice, HP/CE, ability values, enemy
@@ -545,11 +545,10 @@ paths:
       responses:
         '200':
           description: Ability created
-      description: For attack abilities, GPT should normally send damage_min, damage_max,
-        and ce_cost based on character grade, ability concept, restrictions, risk,
-        and narrative power. The engine validates, stores, and later rolls within
-        that fixed range. If explicit numeric fields are omitted, legacy power/cost
-        profiles remain as fallback.
+      description: For attack abilities, GPT may send damage_min, damage_max, and
+        ce_cost. The engine validates and stores them, then rolls actual damage from
+        the saved range during combat. If omitted, legacy power/cost profiles are
+        used.
   /campaigns/{campaignId}/combat/start:
     post:
       operationId: startCombat
