@@ -106,9 +106,16 @@ export function normalizePlayerSetup(input = {}, existingPlayer = null) {
     },
     status: Array.isArray(input.status) ? input.status : (Array.isArray(previous.status) ? previous.status : []),
     inventory: Array.isArray(input.inventory) ? input.inventory : (Array.isArray(previous.inventory) ? previous.inventory : []),
-    ability_ids: Array.isArray(previous.ability_ids) && previous.ability_ids.length
-      ? previous.ability_ids
-      : ["basic_attack"]
+    ability_ids: (() => {
+      const supplied = Array.isArray(input.ability_ids)
+        ? input.ability_ids.filter((id) => typeof id === "string" && id.trim())
+        : [];
+      const preserved = Array.isArray(previous.ability_ids)
+        ? previous.ability_ids.filter((id) => typeof id === "string" && id.trim())
+        : [];
+      const source = supplied.length ? supplied : preserved;
+      return [...new Set(["basic_attack", ...source])];
+    })()
   };
 }
 
