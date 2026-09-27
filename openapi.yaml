@@ -7,7 +7,7 @@ info:
     stats, dice, HP/CE changes, dynamic enemy/ability numeric values, and combat
     resolution. New campaigns must provide an explicit player character.
 servers:
-  - url: https://REPLACE-WITH-YOUR-DEPLOYED-DOMAIN
+  - url: https://trpg-jjk-file.onrender.com
 security:
   - bearerAuth: []
 paths:
