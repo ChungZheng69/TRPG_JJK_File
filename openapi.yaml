@@ -1,12 +1,13 @@
 openapi: 3.1.0
 info:
   title: JJK TRPG Engine API
-  version: 2.0.1
+  version: 2.1.0
   description: >-
-    Stateful TRPG engine for Custom GPT. The server is authoritative for dice,
-    HP/CE changes, dynamic enemy/ability numeric values, and combat resolution.
+    Stateful TRPG engine for Custom GPT. The server is authoritative for player
+    stats, dice, HP/CE changes, dynamic enemy/ability numeric values, and combat
+    resolution. New campaigns must provide an explicit player character.
 servers:
-  - url: https://trpg-jjk-file.onrender.com
+  - url: https://REPLACE-WITH-YOUR-DEPLOYED-DOMAIN
 security:
   - bearerAuth: []
 paths:
@@ -18,7 +19,7 @@ paths:
         - name: campaignId
           in: path
           required: true
-          description: Campaign save ID, for example main or test_v2.
+          description: Campaign save ID, for example main or jjk_2018_01.
           schema:
             type: string
             pattern: '^[a-zA-Z0-9_-]{1,80}$'
@@ -27,43 +28,106 @@ paths:
           description: Campaign loaded
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/CampaignRecord'}
-        '404': {description: Campaign does not exist}
+              schema:
+                $ref: '#/components/schemas/CampaignRecord'
+        '404':
+          description: Campaign does not exist
 
   /campaigns/{campaignId}/initialize:
     post:
       operationId: initializeCampaign
-      summary: Create a campaign if it does not exist
+      summary: Create a new campaign using the exact supplied player character
+      description: >-
+        New campaigns must include player. The engine will not silently create
+        the old test-character template. Set overwrite=true only when the user
+        explicitly wants to reset an existing campaign.
       parameters:
         - name: campaignId
           in: path
           required: true
-          description: Campaign save ID, for example main or test_v2.
+          description: Campaign save ID.
           schema:
             type: string
             pattern: '^[a-zA-Z0-9_-]{1,80}$'
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
               type: object
+              required: [player]
               properties:
-                overwrite: {type: boolean, default: false}
-                state: {type: object, additionalProperties: true}
+                overwrite:
+                  type: boolean
+                  default: false
+                player:
+                  $ref: '#/components/schemas/PlayerSetup'
+                scene:
+                  type: object
+                  additionalProperties: true
+                state:
+                  type: object
+                  description: Optional advanced seed for narrative fields. Do not use this instead of player.
+                  additionalProperties: true
+              additionalProperties: false
       responses:
-        '201': {description: Campaign created}
-        '409': {description: Campaign already exists}
+        '201':
+          description: Campaign created with the supplied player
+        '400':
+          description: Missing or invalid player setup
+        '409':
+          description: Campaign already exists
+
+  /campaigns/{campaignId}/player/setup:
+    patch:
+      operationId: configurePlayerCharacter
+      summary: Set or repair the authoritative player character outside combat
+      description: >-
+        Use during character creation, migration, or an explicit player-approved
+        respec/reset. This is the legal way to replace the old test template with
+        the intended name, attributes, HP, CE, profile, and starting state.
+      parameters:
+        - name: campaignId
+          in: path
+          required: true
+          description: Existing Campaign ID.
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9_-]{1,80}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [player]
+              properties:
+                player:
+                  $ref: '#/components/schemas/PlayerSetup'
+                reset_abilities:
+                  type: boolean
+                  default: false
+                  description: >-
+                    If true, detach previous character abilities and keep only
+                    basic_attack before creating the new character's starting abilities.
+              additionalProperties: false
+      responses:
+        '200':
+          description: Player character configured and saved
+        '400':
+          description: Invalid setup or setup attempted during active combat
+        '404':
+          description: Campaign does not exist
 
   /campaigns/{campaignId}/narrative:
     patch:
       operationId: updateCampaignNarrative
-      summary: Update narrative-only campaign fields; does not directly set HP, CE, enemy stats, or combat math
+      summary: Update narrative-only campaign fields
+      description: Does not directly set player stats, HP, CE, enemy stats, ability stats, or combat math.
       parameters:
         - name: campaignId
           in: path
           required: true
-          description: Campaign save ID, for example main or test_v2.
           schema:
             type: string
             pattern: '^[a-zA-Z0-9_-]{1,80}$'
@@ -71,19 +135,21 @@ paths:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/NarrativeUpdate'}
+            schema:
+              $ref: '#/components/schemas/NarrativeUpdate'
       responses:
-        '200': {description: Narrative state updated}
+        '200':
+          description: Narrative state updated
 
   /campaigns/{campaignId}/check:
     post:
       operationId: runAttributeCheck
-      summary: Roll an authoritative attribute check using 20 stat = 1 positive d20, maximum 5 dice, keep highest
+      summary: Roll an authoritative attribute check
+      description: Every complete 20 stat gives 1 positive d20, maximum 5 dice, keep highest.
       parameters:
         - name: campaignId
           in: path
           required: true
-          description: Campaign save ID, for example main or test_v2.
           schema:
             type: string
             pattern: '^[a-zA-Z0-9_-]{1,80}$'
@@ -91,19 +157,20 @@ paths:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/CheckRequest'}
+            schema:
+              $ref: '#/components/schemas/CheckRequest'
       responses:
-        '200': {description: Check resolved}
+        '200':
+          description: Check resolved
 
   /campaigns/{campaignId}/resources/change:
     post:
       operationId: applyResourceChange
-      summary: Apply an authoritative HP or CE operation outside normal combat resolution
+      summary: Apply an authoritative HP or CE change outside normal combat
       parameters:
         - name: campaignId
           in: path
           required: true
-          description: Campaign save ID, for example main or test_v2.
           schema:
             type: string
             pattern: '^[a-zA-Z0-9_-]{1,80}$'
@@ -111,19 +178,20 @@ paths:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/ResourceChangeRequest'}
+            schema:
+              $ref: '#/components/schemas/ResourceChangeRequest'
       responses:
-        '200': {description: Resource changed}
+        '200':
+          description: Resource changed
 
   /campaigns/{campaignId}/enemies:
     post:
       operationId: createDynamicEnemy
-      summary: Create a dynamic enemy concept; the engine generates balanced numeric stats from its grade
+      summary: Create a dynamic enemy concept and let the engine generate numeric stats
       parameters:
         - name: campaignId
           in: path
           required: true
-          description: Campaign save ID, for example main or test_v2.
           schema:
             type: string
             pattern: '^[a-zA-Z0-9_-]{1,80}$'
@@ -131,19 +199,20 @@ paths:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/CreateEnemyRequest'}
+            schema:
+              $ref: '#/components/schemas/CreateEnemyRequest'
       responses:
-        '200': {description: Enemy created}
+        '200':
+          description: Enemy created
 
   /campaigns/{campaignId}/abilities:
     post:
       operationId: createDynamicAbility
-      summary: Create and attach a dynamic ability; the engine chooses numeric cost and power from balance tiers
+      summary: Create and attach a dynamic ability using engine balance tiers
       parameters:
         - name: campaignId
           in: path
           required: true
-          description: Campaign save ID, for example main or test_v2.
           schema:
             type: string
             pattern: '^[a-zA-Z0-9_-]{1,80}$'
@@ -151,9 +220,11 @@ paths:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/CreateAbilityRequest'}
+            schema:
+              $ref: '#/components/schemas/CreateAbilityRequest'
       responses:
-        '200': {description: Ability created}
+        '200':
+          description: Ability created
 
   /campaigns/{campaignId}/combat/start:
     post:
@@ -163,7 +234,6 @@ paths:
         - name: campaignId
           in: path
           required: true
-          description: Campaign save ID, for example main or test_v2.
           schema:
             type: string
             pattern: '^[a-zA-Z0-9_-]{1,80}$'
@@ -178,22 +248,26 @@ paths:
                 enemy_ids:
                   type: array
                   minItems: 1
-                  items: {type: string}
+                  items:
+                    type: string
                 ally_ids:
                   type: array
-                  items: {type: string}
+                  items:
+                    type: string
+              additionalProperties: false
       responses:
-        '200': {description: Combat started}
+        '200':
+          description: Combat started
 
   /campaigns/{campaignId}/combat/action:
     post:
       operationId: resolveCombatAction
-      summary: Resolve one combat turn, including check, CE cost, damage/healing, HP update, defeat, and turn advance
+      summary: Resolve one combat turn
+      description: Includes check, CE cost, damage/healing, HP update, defeat, and turn advance.
       parameters:
         - name: campaignId
           in: path
           required: true
-          description: Campaign save ID, for example main or test_v2.
           schema:
             type: string
             pattern: '^[a-zA-Z0-9_-]{1,80}$'
@@ -205,92 +279,240 @@ paths:
               type: object
               required: [actor_id, target_id]
               properties:
-                actor_id: {type: string}
-                target_id: {type: string}
-                ability_id: {type: string, default: basic_attack}
+                actor_id:
+                  type: string
+                target_id:
+                  type: string
+                ability_id:
+                  type: string
+                  default: basic_attack
+              additionalProperties: false
       responses:
-        '200': {description: Combat action resolved}
+        '200':
+          description: Combat action resolved
 
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
+
   schemas:
     CampaignRecord:
       type: object
       properties:
-        campaign_id: {type: string}
-        updated_at: {type: string}
-        state: {type: object, additionalProperties: true}
+        campaign_id:
+          type: string
+        updated_at:
+          type: string
+        state:
+          type: object
+          additionalProperties: true
+
+    PlayerSetup:
+      type: object
+      required: [name, attributes, resources]
+      properties:
+        id:
+          type: string
+          default: player_001
+        name:
+          type: string
+        age:
+          type: integer
+          minimum: 0
+          maximum: 999
+        gender:
+          type: string
+        affiliation:
+          type: string
+        grade:
+          type: string
+        era:
+          type: string
+        appearance:
+          type: string
+        personality:
+          type: string
+        goal:
+          type: string
+        level:
+          type: integer
+          minimum: 1
+          default: 1
+        innate_technique:
+          type: object
+          description: Narrative technique concept; numeric combat abilities are created separately.
+          additionalProperties: true
+        attributes:
+          type: object
+          required: [physical, technique, mind]
+          properties:
+            physical:
+              type: integer
+              minimum: 0
+              maximum: 100
+            technique:
+              type: integer
+              minimum: 0
+              maximum: 100
+            mind:
+              type: integer
+              minimum: 0
+              maximum: 100
+          additionalProperties: false
+        resources:
+          type: object
+          required: [hp, ce]
+          properties:
+            hp:
+              $ref: '#/components/schemas/ResourceSetup'
+            ce:
+              $ref: '#/components/schemas/ResourceSetup'
+          additionalProperties: false
+        combat:
+          type: object
+          properties:
+            defense_dc:
+              type: integer
+              minimum: 1
+              maximum: 30
+              default: 10
+            speed:
+              type: integer
+              minimum: 0
+              maximum: 100
+              default: 50
+          additionalProperties: false
+        status:
+          type: array
+          items:
+            type: string
+        inventory:
+          type: array
+          items:
+            type: string
+      additionalProperties: false
+
+    ResourceSetup:
+      type: object
+      required: [current, max]
+      properties:
+        current:
+          type: integer
+          minimum: 0
+        max:
+          type: integer
+          minimum: 1
+      additionalProperties: false
 
     NarrativeUpdate:
       type: object
       properties:
-        scene: {type: object, additionalProperties: true}
+        scene:
+          type: object
+          additionalProperties: true
         quests:
           type: array
-          items: {type: object, additionalProperties: true}
-        relationships: {type: object, additionalProperties: true}
-        campaign_flags: {type: object, additionalProperties: true}
+          items:
+            type: object
+            additionalProperties: true
+        relationships:
+          type: object
+          additionalProperties: true
+        campaign_flags:
+          type: object
+          additionalProperties: true
         canon_changes:
           type: array
-          items: {type: object, additionalProperties: true}
+          items:
+            type: object
+            additionalProperties: true
         important_facts:
           type: array
-          items: {type: string}
+          items:
+            type: string
         recent_events:
           type: array
-          items: {type: string}
-        rolling_summary: {type: string}
+          items:
+            type: string
+        rolling_summary:
+          type: string
       additionalProperties: false
 
     CheckRequest:
       type: object
       required: [actor_id, attribute, difficulty]
       properties:
-        actor_id: {type: string}
+        actor_id:
+          type: string
         attribute:
           type: string
           enum: [physical, technique, mind]
-        difficulty: {type: integer, minimum: 1, maximum: 30}
-        bonus_dice: {type: integer, minimum: 0, maximum: 5, default: 0}
-        penalty_dice: {type: integer, minimum: 0, maximum: 5, default: 0}
-        reason: {type: string}
+        difficulty:
+          type: integer
+          minimum: 1
+          maximum: 30
+        bonus_dice:
+          type: integer
+          minimum: 0
+          maximum: 5
+          default: 0
+        penalty_dice:
+          type: integer
+          minimum: 0
+          maximum: 5
+          default: 0
+        reason:
+          type: string
+      additionalProperties: false
 
     ResourceChangeRequest:
       type: object
       required: [target_id, operation, amount]
       properties:
-        target_id: {type: string}
+        target_id:
+          type: string
         operation:
           type: string
           enum: [damage, heal, spend_ce, restore_ce]
-        amount: {type: number, exclusiveMinimum: 0}
-        reason: {type: string}
+        amount:
+          type: number
+          exclusiveMinimum: 0
+        reason:
+          type: string
+      additionalProperties: false
 
     CreateEnemyRequest:
       type: object
       required: [name, grade]
       properties:
-        name: {type: string}
+        name:
+          type: string
         grade:
           type: string
           enum: [Grade 4, Grade 3, Grade 2, Grade 1, Special Grade]
-        role: {type: string, description: e.g. balanced, skirmisher, tank, controller}
-        theme: {type: string}
+        role:
+          type: string
+          description: For example balanced, skirmisher, tank, controller.
+        theme:
+          type: string
         persistence:
           type: string
           enum: [scene, campaign]
           default: scene
-        notes: {type: string}
+        notes:
+          type: string
+      additionalProperties: false
 
     CreateAbilityRequest:
       type: object
       required: [owner_id, name, type, attribute, power, cost]
       properties:
-        owner_id: {type: string}
-        name: {type: string}
+        owner_id:
+          type: string
+        name:
+          type: string
         type:
           type: string
           enum: [attack, heal, utility]
@@ -303,5 +525,8 @@ components:
         cost:
           type: string
           enum: [none, low, medium, high, extreme]
-        effect_kind: {type: string}
-        description: {type: string}
+        effect_kind:
+          type: string
+        description:
+          type: string
+      additionalProperties: false
