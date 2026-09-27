@@ -1,53 +1,47 @@
 openapi: 3.1.0
 info:
   title: JJK TRPG Engine API
-  version: 2.2.0
-  description: >-
-    Stateful JJK TRPG engine for Custom GPT. Character creation uses flat
-    request fields so Custom GPT Actions can reliably see and submit every
-    player value. The engine is authoritative for stats, dice, HP/CE,
-    ability values, enemy values, and combat.
-
+  version: 2.3.0
+  description: Stateful JJK TRPG engine for Custom GPT. Character creation uses flat
+    request fields so Custom GPT Actions can reliably see and submit every player
+    value. The engine is authoritative for stats, dice, HP/CE, ability values, enemy
+    values, and combat.
 servers:
-  - url: https://trpg-jjk-file.onrender.com
-  
+- url: https://trpg-jjk-file.onrender.com
 security:
-  - bearerAuth: []
-
+- bearerAuth: []
 paths:
   /campaigns/{campaignId}:
     get:
       operationId: loadCampaignContext
       summary: Load the authoritative campaign state
       parameters:
-        - name: campaignId
-          in: path
-          required: true
-          schema:
-            type: string
-            pattern: '^[a-zA-Z0-9_-]{1,80}$'
+      - name: campaignId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[a-zA-Z0-9_-]{1,80}$
       responses:
         '200':
           description: Campaign loaded
         '404':
           description: Campaign does not exist
-
   /campaigns/{campaignId}/character/create:
     post:
       operationId: createCharacterCampaign
       summary: Create a new campaign and its authoritative player character
-      description: >-
-        ALWAYS use this action for a brand-new character/campaign.
-        All player fields are explicit top-level request fields.
-        After success, call loadCampaignContext to verify the saved state.
+      description: ALWAYS use this action for a brand-new character/campaign. All
+        player fields are explicit top-level request fields. After success, call loadCampaignContext
+        to verify the saved state.
       parameters:
-        - name: campaignId
-          in: path
-          required: true
-          description: New campaign ID.
-          schema:
-            type: string
-            pattern: '^[a-zA-Z0-9_-]{1,80}$'
+      - name: campaignId
+        in: path
+        required: true
+        description: New campaign ID.
+        schema:
+          type: string
+          pattern: ^[a-zA-Z0-9_-]{1,80}$
       requestBody:
         required: true
         content:
@@ -55,17 +49,18 @@ paths:
             schema:
               type: object
               required:
-                - name
-                - physical
-                - technique
-                - mind
-                - hp_max
-                - ce_max
+              - name
+              - physical
+              - technique
+              - mind
+              - hp_max
+              - ce_max
               properties:
                 overwrite:
                   type: boolean
                   default: false
-                  description: Use true only when the user explicitly requests a full reset.
+                  description: Use true only when the user explicitly requests a full
+                    reset.
                 player_id:
                   type: string
                   default: player_001
@@ -150,21 +145,19 @@ paths:
           description: Invalid or incomplete character data
         '409':
           description: Campaign already exists
-
   /campaigns/{campaignId}/character:
     patch:
       operationId: updatePlayerCharacter
       summary: Replace or repair the authoritative player data in an existing campaign
-      description: >-
-        Use only for character setup correction, migration, or an explicit user-approved
-        respec outside combat. This changes real engine state.
+      description: Use only for character setup correction, migration, or an explicit
+        user-approved respec outside combat. This changes real engine state.
       parameters:
-        - name: campaignId
-          in: path
-          required: true
-          schema:
-            type: string
-            pattern: '^[a-zA-Z0-9_-]{1,80}$'
+      - name: campaignId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[a-zA-Z0-9_-]{1,80}$
       requestBody:
         required: true
         content:
@@ -172,12 +165,12 @@ paths:
             schema:
               type: object
               required:
-                - name
-                - physical
-                - technique
-                - mind
-                - hp_max
-                - ce_max
+              - name
+              - physical
+              - technique
+              - mind
+              - hp_max
+              - ce_max
               properties:
                 reset_abilities:
                   type: boolean
@@ -261,18 +254,17 @@ paths:
           description: Invalid data or active combat
         '404':
           description: Campaign does not exist
-
   /campaigns/{campaignId}/narrative:
     patch:
       operationId: updateCampaignNarrative
       summary: Update narrative-only campaign fields
       parameters:
-        - name: campaignId
-          in: path
-          required: true
-          schema:
-            type: string
-            pattern: '^[a-zA-Z0-9_-]{1,80}$'
+      - name: campaignId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[a-zA-Z0-9_-]{1,80}$
       requestBody:
         required: true
         content:
@@ -332,19 +324,18 @@ paths:
       responses:
         '200':
           description: Narrative updated
-
   /campaigns/{campaignId}/check:
     post:
       operationId: runAttributeCheck
       summary: Roll an authoritative attribute check
       description: Every complete 20 stat gives 1 positive d20, maximum 5, keep highest.
       parameters:
-        - name: campaignId
-          in: path
-          required: true
-          schema:
-            type: string
-            pattern: '^[a-zA-Z0-9_-]{1,80}$'
+      - name: campaignId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[a-zA-Z0-9_-]{1,80}$
       requestBody:
         required: true
         content:
@@ -352,15 +343,18 @@ paths:
             schema:
               type: object
               required:
-                - actor_id
-                - attribute
-                - difficulty
+              - actor_id
+              - attribute
+              - difficulty
               properties:
                 actor_id:
                   type: string
                 attribute:
                   type: string
-                  enum: [physical, technique, mind]
+                  enum:
+                  - physical
+                  - technique
+                  - mind
                 difficulty:
                   type: integer
                   minimum: 1
@@ -381,31 +375,37 @@ paths:
       responses:
         '200':
           description: Check resolved
-
   /campaigns/{campaignId}/resources/change:
     post:
       operationId: applyResourceChange
       summary: Apply an authoritative HP or CE change outside normal combat
       parameters:
-        - name: campaignId
-          in: path
-          required: true
-          schema:
-            type: string
-            pattern: '^[a-zA-Z0-9_-]{1,80}$'
+      - name: campaignId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[a-zA-Z0-9_-]{1,80}$
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [target_id, operation, amount]
+              required:
+              - target_id
+              - operation
+              - amount
               properties:
                 target_id:
                   type: string
                 operation:
                   type: string
-                  enum: [damage, heal, spend_ce, restore_ce]
+                  enum:
+                  - damage
+                  - heal
+                  - spend_ce
+                  - restore_ce
                 amount:
                   type: number
                   exclusiveMinimum: 0
@@ -415,38 +415,46 @@ paths:
       responses:
         '200':
           description: Resource changed
-
   /campaigns/{campaignId}/enemies:
     post:
       operationId: createDynamicEnemy
       summary: Create a dynamic enemy; the engine generates numeric stats
       parameters:
-        - name: campaignId
-          in: path
-          required: true
-          schema:
-            type: string
-            pattern: '^[a-zA-Z0-9_-]{1,80}$'
+      - name: campaignId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[a-zA-Z0-9_-]{1,80}$
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [name, grade]
+              required:
+              - name
+              - grade
               properties:
                 name:
                   type: string
                 grade:
                   type: string
-                  enum: [Grade 4, Grade 3, Grade 2, Grade 1, Special Grade]
+                  enum:
+                  - Grade 4
+                  - Grade 3
+                  - Grade 2
+                  - Grade 1
+                  - Special Grade
                 role:
                   type: string
                 theme:
                   type: string
                 persistence:
                   type: string
-                  enum: [scene, campaign]
+                  enum:
+                  - scene
+                  - campaign
                   default: scene
                 notes:
                   type: string
@@ -454,25 +462,31 @@ paths:
       responses:
         '200':
           description: Enemy created
-
   /campaigns/{campaignId}/abilities:
     post:
       operationId: createDynamicAbility
-      summary: Create and attach a dynamic ability using engine balance tiers
+      summary: Create and attach an ability; GPT may choose exact damage range and
+        CE cost
       parameters:
-        - name: campaignId
-          in: path
-          required: true
-          schema:
-            type: string
-            pattern: '^[a-zA-Z0-9_-]{1,80}$'
+      - name: campaignId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[a-zA-Z0-9_-]{1,80}$
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [owner_id, name, type, attribute, power, cost]
+              required:
+              - owner_id
+              - name
+              - type
+              - attribute
+              - power
+              - cost
               properties:
                 owner_id:
                   type: string
@@ -480,16 +494,49 @@ paths:
                   type: string
                 type:
                   type: string
-                  enum: [attack, heal, utility]
+                  enum:
+                  - attack
+                  - heal
+                  - utility
                 attribute:
                   type: string
-                  enum: [physical, technique, mind]
+                  enum:
+                  - physical
+                  - technique
+                  - mind
                 power:
                   type: string
-                  enum: [low, medium, high, extreme]
+                  enum:
+                  - low
+                  - medium
+                  - high
+                  - extreme
                 cost:
                   type: string
-                  enum: [none, low, medium, high, extreme]
+                  enum:
+                  - none
+                  - low
+                  - medium
+                  - high
+                  - extreme
+                damage_min:
+                  type: integer
+                  minimum: 1
+                  maximum: 120
+                  description: For attack abilities, GPT-selected minimum damage.
+                    Keep stable after creation.
+                damage_max:
+                  type: integer
+                  minimum: 1
+                  maximum: 120
+                  description: For attack abilities, GPT-selected maximum damage.
+                    Must be >= damage_min.
+                ce_cost:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                  description: Exact CE cost chosen by GPT at ability creation. Stable
+                    after creation.
                 effect_kind:
                   type: string
                 description:
@@ -498,25 +545,30 @@ paths:
       responses:
         '200':
           description: Ability created
-
+      description: For attack abilities, GPT should normally send damage_min, damage_max,
+        and ce_cost based on character grade, ability concept, restrictions, risk,
+        and narrative power. The engine validates, stores, and later rolls within
+        that fixed range. If explicit numeric fields are omitted, legacy power/cost
+        profiles remain as fallback.
   /campaigns/{campaignId}/combat/start:
     post:
       operationId: startCombat
       summary: Start combat and calculate turn order
       parameters:
-        - name: campaignId
-          in: path
-          required: true
-          schema:
-            type: string
-            pattern: '^[a-zA-Z0-9_-]{1,80}$'
+      - name: campaignId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[a-zA-Z0-9_-]{1,80}$
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [enemy_ids]
+              required:
+              - enemy_ids
               properties:
                 enemy_ids:
                   type: array
@@ -531,25 +583,26 @@ paths:
       responses:
         '200':
           description: Combat started
-
   /campaigns/{campaignId}/combat/action:
     post:
       operationId: resolveCombatAction
       summary: Resolve one combat turn
       parameters:
-        - name: campaignId
-          in: path
-          required: true
-          schema:
-            type: string
-            pattern: '^[a-zA-Z0-9_-]{1,80}$'
+      - name: campaignId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[a-zA-Z0-9_-]{1,80}$
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [actor_id, target_id]
+              required:
+              - actor_id
+              - target_id
               properties:
                 actor_id:
                   type: string
@@ -562,7 +615,6 @@ paths:
       responses:
         '200':
           description: Combat action resolved
-
 components:
   schemas: {}
   securitySchemes:
