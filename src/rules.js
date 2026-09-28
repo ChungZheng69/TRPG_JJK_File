@@ -15,19 +15,19 @@ export const RULES = Object.freeze({
 
 export const ENEMY_GRADE_PROFILES = Object.freeze({
   "Grade 4": {
-    attribute: [20, 40], hp: [25, 45], ce: [10, 30], defense_dc: [8, 10], speed: [20, 40]
+    attribute: [20, 40], hp: [20, 30], ce: [10, 30], defense_dc: [8, 10], speed: [20, 40]
   },
   "Grade 3": {
-    attribute: [30, 55], hp: [40, 70], ce: [20, 45], defense_dc: [9, 11], speed: [30, 55]
+    attribute: [30, 55], hp: [30, 45], ce: [20, 45], defense_dc: [9, 11], speed: [30, 55]
   },
   "Grade 2": {
-    attribute: [45, 75], hp: [70, 110], ce: [40, 80], defense_dc: [10, 13], speed: [40, 70]
+    attribute: [45, 75], hp: [45, 70], ce: [40, 80], defense_dc: [10, 13], speed: [40, 70]
   },
   "Grade 1": {
-    attribute: [60, 90], hp: [110, 170], ce: [70, 130], defense_dc: [12, 15], speed: [55, 85]
+    attribute: [60, 90], hp: [70, 110], ce: [70, 130], defense_dc: [12, 15], speed: [55, 85]
   },
   "Special Grade": {
-    attribute: [80, 100], hp: [180, 300], ce: [120, 250], defense_dc: [14, 18], speed: [70, 100]
+    attribute: [80, 100], hp: [120, 190], ce: [120, 250], defense_dc: [14, 18], speed: [70, 100]
   }
 });
 
@@ -37,6 +37,22 @@ export const ABILITY_NUMERIC_LIMITS = Object.freeze({
   damage_max: 120,
   ce_cost_min: 0,
   ce_cost_max: 100
+});
+
+
+export const CINEMATIC_COMBAT = Object.freeze({
+  strong_hit_margin: 5,
+  strong_hit_natural_roll: 20,
+  strong_hit_multiplier: 1.5
+});
+
+// Used automatically for legacy attack abilities that were created before
+// explicit damage_min / damage_max existed.
+export const LEGACY_ATTACK_DAMAGE_RANGES = Object.freeze({
+  low: { min: 18, max: 30 },
+  medium: { min: 28, max: 45 },
+  high: { min: 40, max: 65 },
+  extreme: { min: 60, max: 90 }
 });
 
 export const ABILITY_POWER_PROFILES = Object.freeze({
@@ -62,7 +78,7 @@ export const BUILTIN_ABILITIES = Object.freeze({
     attribute: "physical",
     ce_cost: 0,
     power: "low",
-    damage: { dice_count: 1, dice_sides: 6, flat: 2 },
+    damage: { mode: "range", min: 10, max: 18 },
     description: "不消耗 CE 的基础近战攻击。",
     builtin: true
   }
