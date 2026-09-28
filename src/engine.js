@@ -4,7 +4,9 @@ import {
   ABILITY_NUMERIC_LIMITS,
   ABILITY_POWER_PROFILES,
   BUILTIN_ABILITIES,
+  CINEMATIC_COMBAT,
   ENEMY_GRADE_PROFILES,
+  LEGACY_ATTACK_DAMAGE_RANGES,
   RULES
 } from "./rules.js";
 
@@ -286,7 +288,7 @@ function rollFormula(formula) {
   };
 }
 
-function rollAbilityAmount(spec, fallbackFormula) {
+function rollAttackDamage(spec, power = "low") {
   if (
     spec &&
     spec.mode === "range" &&
@@ -305,7 +307,28 @@ function rollAbilityAmount(spec, fallbackFormula) {
     };
   }
 
-  return rollFormula(spec || fallbackFormula);
+  // Old abilities often stored low dice formulas such as 1d8+4.
+  // Convert those legacy attacks to the new cinematic damage pacing
+  // without requiring the campaign to recreate every ability.
+  const range = LEGACY_ATTACK_DAMAGE_RANGES[power] || LEGACY_ATTACK_DAMAGE_RANGES.low;
+  const total = randomInt(range.min, range.max);
+  return {
+    mode: "legacy_cinematic_range",
+    min: range.min,
+    max: range.max,
+    roll: total,
+    total,
+    legacy_formula: spec || null
+  };
+}
+
+function strongHitFromCheck(check) {
+  if (!check?.success || check.highest_roll === null) return false;
+  const margin = Number(check.highest_roll) - Number(check.difficulty);
+  return (
+    margin >= CINEMATIC_COMBAT.strong_hit_margin ||
+    Number(check.highest_roll) === CINEMATIC_COMBAT.strong_hit_natural_roll
+  );
 }
 
 function isDefeated(actor) {
@@ -376,11 +399,28 @@ export function resolveCombatAction(state, { actor_id, target_id, ability_id = "
     result.hit = check.success;
 
     if (check.success) {
-      const damage = rollAbilityAmount(ability.damage, ABILITY_POWER_PROFILES.low);
+      const damage = rollAttackDamage(ability.damage, ability.power || "low");
+      const strongHit = strongHitFromCheck(check);
+      const baseDamage = Number(damage.total);
+      const resolvedDamage = strongHit
+        ? Math.floor(baseDamage * CINEMATIC_COMBAT.strong_hit_multiplier)
+        : baseDamage;
+
       const before = Number(target.resources.hp.current);
-      const after = clamp(before - damage.total, 0, Number(target.resources.hp.max));
+      const after = clamp(before - resolvedDamage, 0, Number(target.resources.hp.max));
       target.resources.hp.current = after;
-      result.damage = { ...damage, before_hp: before, after_hp: after, final_damage: before - after };
+
+      result.strong_hit = strongHit;
+      result.damage = {
+        ...damage,
+        base_damage: baseDamage,
+        strong_hit: strongHit,
+        strong_hit_multiplier: strongHit ? CINEMATIC_COMBAT.strong_hit_multiplier : 1,
+        total: resolvedDamage,
+        before_hp: before,
+        after_hp: after,
+        final_damage: before - after
+      };
       result.target_defeated = after <= 0;
     } else {
       result.damage = null;
