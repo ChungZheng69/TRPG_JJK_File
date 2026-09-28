@@ -1,11 +1,9 @@
 openapi: 3.1.0
 info:
   title: JJK TRPG Engine API
-  version: 2.3.1
-  description: Stateful JJK TRPG engine for Custom GPT. Character creation uses flat
-    request fields so Custom GPT Actions can reliably see and submit every player
-    value. The engine is authoritative for stats, dice, HP/CE, ability values, enemy
-    values, and combat.
+  version: 2.5.0
+  description: Stateful JJK TRPG engine. Engine v2.5 adds authoritative rerolls for
+    the latest standalone check and safe overwrite-rerolls for the latest combat action.
 servers:
 - url: https://trpg-jjk-file.onrender.com
 security:
@@ -328,7 +326,8 @@ paths:
     post:
       operationId: runAttributeCheck
       summary: Roll an authoritative attribute check
-      description: Every complete 20 stat gives 1 positive d20, maximum 5, keep highest.
+      description: Roll an authoritative attribute check and save it as the latest
+        standalone check so the player can explicitly reroll it later.
       parameters:
       - name: campaignId
         in: path
@@ -585,7 +584,7 @@ paths:
   /campaigns/{campaignId}/combat/action:
     post:
       operationId: resolveCombatAction
-      summary: Resolve one combat turn
+      summary: Resolve and save one combat action
       parameters:
       - name: campaignId
         in: path
@@ -614,6 +613,70 @@ paths:
       responses:
         '200':
           description: Combat action resolved
+      description: Resolve one combat action and save a pre-action snapshot so an
+        immediate player-requested overwrite reroll can safely replace it.
+  /campaigns/{campaignId}/check/reroll:
+    post:
+      operationId: rerollLastCheck
+      summary: Reroll and replace the latest standalone attribute check
+      description: Uses the saved actor, attribute, DC and modifiers from the latest
+        standalone check and generates a new authoritative roll.
+      parameters:
+      - name: campaignId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[a-zA-Z0-9_-]{1,80}$
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                expected_check_id:
+                  type: string
+                  description: Optional safety check. Omit when simply rerolling the
+                    latest check.
+              additionalProperties: false
+      responses:
+        '200':
+          description: Latest check rerolled and replaced
+        '400':
+          description: No rerollable check or check ID mismatch
+  /campaigns/{campaignId}/combat/action/reroll:
+    post:
+      operationId: rerollLastCombatAction
+      summary: Undo and reroll the latest combat action
+      description: Restores the pre-action HP, CE, actors and turn state, then resolves
+        the same action again. Fails if later mechanical state changes exist.
+      parameters:
+      - name: campaignId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[a-zA-Z0-9_-]{1,80}$
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                expected_action_id:
+                  type: string
+                  description: Optional safety check. Omit when rerolling the latest
+                    combat action.
+              additionalProperties: false
+      responses:
+        '200':
+          description: Latest combat action restored and rerolled
+        '400':
+          description: No rerollable action or action ID mismatch
+        '409':
+          description: Later mechanical state makes overwrite unsafe
 components:
   schemas: {}
   securitySchemes:
