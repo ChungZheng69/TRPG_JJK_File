@@ -148,7 +148,7 @@ async function withCampaign(req, res, fn) {
   }
 }
 
-app.get("/health", (_req, res) => res.json({ ok: true, engine_version: "2.3.0", schema_version: RULES.schema_version }));
+app.get("/health", (_req, res) => res.json({ ok: true, engine_version: "2.4.0", schema_version: RULES.schema_version }));
 
 app.get("/campaigns/:campaignId", requireApiKey, async (req, res) => {
   const { campaignId } = req.params;
