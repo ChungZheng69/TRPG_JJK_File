@@ -1,0 +1,20 @@
+{
+  "name": "jjk-trpg-narrative-engine",
+  "version": "3.0.0",
+  "private": true,
+  "description": "JJK TRPG V3: narrative combat, dice resolution, narrative growth, persistent Postgres saves.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "pg": "^8.23.0"
+  }
+}
