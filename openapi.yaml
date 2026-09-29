@@ -1,9 +1,9 @@
 openapi: 3.1.0
 info:
-  title: JJK TRPG Engine API
-  version: 2.5.0
-  description: Stateful JJK TRPG engine. Engine v2.5 adds authoritative rerolls for
-    the latest standalone check and safe overwrite-rerolls for the latest combat action.
+  title: JJK TRPG Narrative Engine API
+  version: 3.0.0
+  description: Persistent JJK TRPG backend. V3 uses AI-led narrative combat, authoritative
+    dice and saved HP/CE, plus milestone growth.
 servers:
 - url: https://trpg-jjk-file.onrender.com
 security:
@@ -28,15 +28,13 @@ paths:
   /campaigns/{campaignId}/character/create:
     post:
       operationId: createCharacterCampaign
-      summary: Create a new campaign and its authoritative player character
-      description: ALWAYS use this action for a brand-new character/campaign. All
-        player fields are explicit top-level request fields. After success, call loadCampaignContext
-        to verify the saved state.
+      summary: Create a campaign and authoritative player character
+      description: Use for a brand-new campaign. Character fields are flat for reliable
+        Custom GPT Action calls. Reload after creation to verify the save.
       parameters:
       - name: campaignId
         in: path
         required: true
-        description: New campaign ID.
         schema:
           type: string
           pattern: ^[a-zA-Z0-9_-]{1,80}$
@@ -46,7 +44,7 @@ paths:
           application/json:
             schema:
               type: object
-              required:
+              required: &id001
               - name
               - physical
               - technique
@@ -57,98 +55,91 @@ paths:
                 overwrite:
                   type: boolean
                   default: false
-                  description: Use true only when the user explicitly requests a full
-                    reset.
-                player_id:
+                player_id: &id002
                   type: string
                   default: player_001
-                name:
+                name: &id003
                   type: string
-                age:
+                age: &id004
                   type: integer
                   minimum: 0
                   maximum: 999
-                gender:
+                gender: &id005
                   type: string
-                affiliation:
+                affiliation: &id006
                   type: string
-                grade:
+                grade: &id007
                   type: string
-                era:
+                era: &id008
                   type: string
-                appearance:
+                appearance: &id009
                   type: string
-                personality:
+                personality: &id010
                   type: string
-                goal:
+                goal: &id011
                   type: string
-                level:
+                level: &id012
                   type: integer
                   minimum: 1
                   default: 1
-                physical:
+                physical: &id013
                   type: integer
                   minimum: 0
                   maximum: 100
-                  description: Physical attribute.
-                technique:
+                technique: &id014
                   type: integer
                   minimum: 0
                   maximum: 100
-                  description: Technique attribute.
-                mind:
+                mind: &id015
                   type: integer
                   minimum: 0
                   maximum: 100
-                  description: Mind attribute.
-                hp_max:
+                hp_max: &id016
                   type: integer
                   minimum: 1
-                hp_current:
+                hp_current: &id017
                   type: integer
                   minimum: 0
-                  description: Omit to start at hp_max.
-                ce_max:
+                ce_max: &id018
                   type: integer
                   minimum: 1
-                ce_current:
+                ce_current: &id019
                   type: integer
                   minimum: 0
-                  description: Omit to start at ce_max.
-                defense_dc:
+                defense_dc: &id020
                   type: integer
                   minimum: 1
                   maximum: 30
                   default: 10
-                speed:
+                speed: &id021
                   type: integer
                   minimum: 0
                   maximum: 100
                   default: 50
-                innate_technique_name:
+                innate_technique_name: &id022
                   type: string
-                innate_technique_description:
+                innate_technique_description: &id023
                   type: string
-                start_date_time:
+                start_date_time: &id024
                   type: string
-                start_location:
+                start_location: &id025
                   type: string
-                start_situation:
+                start_situation: &id026
                   type: string
               additionalProperties: false
       responses:
         '201':
           description: Character campaign created
         '400':
-          description: Invalid or incomplete character data
+          description: Invalid character data
         '409':
           description: Campaign already exists
   /campaigns/{campaignId}/character:
     patch:
       operationId: updatePlayerCharacter
-      summary: Replace or repair the authoritative player data in an existing campaign
-      description: Use only for character setup correction, migration, or an explicit
-        user-approved respec outside combat. This changes real engine state.
+      summary: Repair or explicitly respec the player character
+      description: Use for setup correction or explicit respec, not ordinary growth.
+        Character growth must use applyCharacterGrowth.
       parameters:
       - name: campaignId
         in: path
@@ -162,100 +153,46 @@ paths:
           application/json:
             schema:
               type: object
-              required:
-              - name
-              - physical
-              - technique
-              - mind
-              - hp_max
-              - ce_max
+              required: *id001
               properties:
+                player_id: *id002
+                name: *id003
+                age: *id004
+                gender: *id005
+                affiliation: *id006
+                grade: *id007
+                era: *id008
+                appearance: *id009
+                personality: *id010
+                goal: *id011
+                level: *id012
+                physical: *id013
+                technique: *id014
+                mind: *id015
+                hp_max: *id016
+                hp_current: *id017
+                ce_max: *id018
+                ce_current: *id019
+                defense_dc: *id020
+                speed: *id021
+                innate_technique_name: *id022
+                innate_technique_description: *id023
+                start_date_time: *id024
+                start_location: *id025
+                start_situation: *id026
                 reset_abilities:
                   type: boolean
                   default: false
-                player_id:
-                  type: string
-                  default: player_001
-                name:
-                  type: string
-                age:
-                  type: integer
-                  minimum: 0
-                  maximum: 999
-                gender:
-                  type: string
-                affiliation:
-                  type: string
-                grade:
-                  type: string
-                era:
-                  type: string
-                appearance:
-                  type: string
-                personality:
-                  type: string
-                goal:
-                  type: string
-                level:
-                  type: integer
-                  minimum: 1
-                  default: 1
-                physical:
-                  type: integer
-                  minimum: 0
-                  maximum: 100
-                technique:
-                  type: integer
-                  minimum: 0
-                  maximum: 100
-                mind:
-                  type: integer
-                  minimum: 0
-                  maximum: 100
-                hp_max:
-                  type: integer
-                  minimum: 1
-                hp_current:
-                  type: integer
-                  minimum: 0
-                ce_max:
-                  type: integer
-                  minimum: 1
-                ce_current:
-                  type: integer
-                  minimum: 0
-                defense_dc:
-                  type: integer
-                  minimum: 1
-                  maximum: 30
-                  default: 10
-                speed:
-                  type: integer
-                  minimum: 0
-                  maximum: 100
-                  default: 50
-                innate_technique_name:
-                  type: string
-                innate_technique_description:
-                  type: string
-                start_date_time:
-                  type: string
-                start_location:
-                  type: string
-                start_situation:
-                  type: string
               additionalProperties: false
       responses:
         '200':
-          description: Player updated and saved
-        '400':
-          description: Invalid data or active combat
-        '404':
-          description: Campaign does not exist
+          description: Player updated
   /campaigns/{campaignId}/narrative:
     patch:
       operationId: updateCampaignNarrative
-      summary: Update narrative-only campaign fields
+      summary: Update narrative-only campaign memory
+      description: Save scene, quests, relationships, flags, facts, recent events,
+        canon changes or rolling summary. Do not use for mechanical stats.
       parameters:
       - name: campaignId
         in: path
@@ -279,35 +216,31 @@ paths:
                       type: string
                     situation:
                       type: string
+                    present_npcs:
+                      type: array
+                      items:
+                        type: string
                   additionalProperties: true
                 quests:
                   type: array
                   items:
-                    type: object
-                    properties:
-                      id:
-                        type: string
-                      title:
-                        type: string
-                      status:
-                        type: string
-                    additionalProperties: true
+                    type: string
                 relationships:
                   type: object
+                  properties:
+                    summary:
+                      type: string
                   additionalProperties: true
                 campaign_flags:
                   type: object
+                  properties:
+                    summary:
+                      type: string
                   additionalProperties: true
                 canon_changes:
                   type: array
                   items:
-                    type: object
-                    properties:
-                      event_id:
-                        type: string
-                      campaign_result:
-                        type: string
-                    additionalProperties: true
+                    type: string
                 important_facts:
                   type: array
                   items:
@@ -321,13 +254,13 @@ paths:
               additionalProperties: false
       responses:
         '200':
-          description: Narrative updated
+          description: Narrative memory updated
   /campaigns/{campaignId}/check:
     post:
       operationId: runAttributeCheck
-      summary: Roll an authoritative attribute check
-      description: Roll an authoritative attribute check and save it as the latest
-        standalone check so the player can explicitly reroll it later.
+      summary: Roll an authoritative narrative attribute check
+      description: Roll dice for an uncertain action. Returns success margin and degree
+        for AI narration. It does not apply damage or advance turns.
       parameters:
       - name: campaignId
         in: path
@@ -374,10 +307,38 @@ paths:
       responses:
         '200':
           description: Check resolved
+  /campaigns/{campaignId}/check/reroll:
+    post:
+      operationId: rerollLastCheck
+      summary: Reroll the latest standalone check
+      description: Use only when the player explicitly requests a reroll. Reuses the
+        saved actor, attribute, DC and modifiers.
+      parameters:
+      - name: campaignId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[a-zA-Z0-9_-]{1,80}$
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                expected_check_id:
+                  type: string
+              additionalProperties: false
+      responses:
+        '200':
+          description: Latest check rerolled
   /campaigns/{campaignId}/resources/change:
     post:
       operationId: applyResourceChange
-      summary: Apply an authoritative HP or CE change outside normal combat
+      summary: Apply an authoritative HP or CE change
+      description: After AI interprets a dice result, use this to commit damage, healing,
+        CE spend or CE recovery to the persistent save.
       parameters:
       - name: campaignId
         in: path
@@ -417,7 +378,9 @@ paths:
   /campaigns/{campaignId}/enemies:
     post:
       operationId: createDynamicEnemy
-      summary: Create a dynamic enemy; the engine generates numeric stats
+      summary: Create a mechanically relevant enemy
+      description: GPT supplies concept and grade. Engine generates stable reference
+        stats and HP/CE. No initiative or turn order is created.
       parameters:
       - name: campaignId
         in: path
@@ -464,8 +427,9 @@ paths:
   /campaigns/{campaignId}/abilities:
     post:
       operationId: createDynamicAbility
-      summary: Create and attach an ability; GPT may choose exact damage range and
-        CE cost
+      summary: Create and attach a reusable ability
+      description: GPT chooses the ability concept, reference damage range and CE
+        cost. These guide narrative resolution; Engine does not auto-roll damage.
       parameters:
       - name: campaignId
         in: path
@@ -522,20 +486,14 @@ paths:
                   type: integer
                   minimum: 1
                   maximum: 120
-                  description: For attack abilities, GPT-selected minimum damage.
-                    Keep stable after creation.
                 damage_max:
                   type: integer
                   minimum: 1
                   maximum: 120
-                  description: For attack abilities, GPT-selected maximum damage.
-                    Must be >= damage_min.
                 ce_cost:
                   type: integer
                   minimum: 0
                   maximum: 100
-                  description: Exact CE cost chosen by GPT at ability creation. Stable
-                    after creation.
                 effect_kind:
                   type: string
                 description:
@@ -544,14 +502,12 @@ paths:
       responses:
         '200':
           description: Ability created
-      description: For attack abilities, GPT may send damage_min, damage_max, and
-        ce_cost. The engine validates and stores them, then rolls actual damage from
-        the saved range during combat. If omitted, legacy power/cost profiles are
-        used.
-  /campaigns/{campaignId}/combat/start:
-    post:
-      operationId: startCombat
-      summary: Start combat and calculate turn order
+  /campaigns/{campaignId}/entities/state:
+    patch:
+      operationId: updateEntityState
+      summary: Persist a narrative combat status or position
+      description: Use for consequences such as injured leg, stunned, restrained,
+        displaced, behind cover or other persistent scene state.
       parameters:
       - name: campaignId
         in: path
@@ -566,117 +522,198 @@ paths:
             schema:
               type: object
               required:
-              - enemy_ids
-              properties:
-                enemy_ids:
-                  type: array
-                  minItems: 1
-                  items:
-                    type: string
-                ally_ids:
-                  type: array
-                  items:
-                    type: string
-              additionalProperties: false
-      responses:
-        '200':
-          description: Combat started
-  /campaigns/{campaignId}/combat/action:
-    post:
-      operationId: resolveCombatAction
-      summary: Resolve and save one combat action
-      parameters:
-      - name: campaignId
-        in: path
-        required: true
-        schema:
-          type: string
-          pattern: ^[a-zA-Z0-9_-]{1,80}$
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-              - actor_id
               - target_id
               properties:
-                actor_id:
-                  type: string
                 target_id:
                   type: string
+                add_status:
+                  type: string
+                remove_status:
+                  type: string
+                position:
+                  type: string
+                note:
+                  type: string
+              additionalProperties: false
+      responses:
+        '200':
+          description: Entity state updated
+  /campaigns/{campaignId}/growth/evidence:
+    post:
+      operationId: recordGrowthEvidence
+      summary: Record meaningful evidence of character growth
+      description: Record training, mastery, hardship or insight that may justify
+        later growth. Routine attacks should not create growth evidence.
+      parameters:
+      - name: campaignId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[a-zA-Z0-9_-]{1,80}$
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - category
+              - significance
+              - note
+              properties:
+                category:
+                  type: string
+                  enum:
+                  - physical
+                  - technique
+                  - mind
+                  - hp
+                  - ce
+                  - ability
+                  - grade
+                  - general
+                significance:
+                  type: string
+                  enum:
+                  - minor
+                  - meaningful
+                  - major
+                note:
+                  type: string
+                related_ability_id:
+                  type: string
+              additionalProperties: false
+      responses:
+        '200':
+          description: Growth evidence recorded
+  /campaigns/{campaignId}/growth/apply:
+    post:
+      operationId: applyCharacterGrowth
+      summary: Apply milestone-based character growth
+      description: AI decides justified growth from recorded evidence. Engine validates
+        caps, applies stats or max resources, and permanently logs the change.
+      parameters:
+      - name: campaignId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[a-zA-Z0-9_-]{1,80}$
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - reason
+              - evidence_ids
+              - growth_scale
+              properties:
+                reason:
+                  type: string
+                evidence_ids:
+                  type: array
+                  minItems: 1
+                  maxItems: 10
+                  items:
+                    type: string
+                growth_scale:
+                  type: string
+                  enum:
+                  - minor
+                  - significant
+                  - breakthrough
+                physical_delta:
+                  type: integer
+                  minimum: 0
+                  maximum: 10
+                  default: 0
+                technique_delta:
+                  type: integer
+                  minimum: 0
+                  maximum: 10
+                  default: 0
+                mind_delta:
+                  type: integer
+                  minimum: 0
+                  maximum: 10
+                  default: 0
+                hp_max_delta:
+                  type: integer
+                  minimum: 0
+                  maximum: 25
+                  default: 0
+                ce_max_delta:
+                  type: integer
+                  minimum: 0
+                  maximum: 30
+                  default: 0
+                new_grade:
+                  type: string
+              additionalProperties: false
+      responses:
+        '200':
+          description: Character growth applied
+  /campaigns/{campaignId}/abilities/evolve:
+    patch:
+      operationId: evolveAbility
+      summary: Evolve an existing ability after justified growth
+      description: Use recorded growth evidence to change an ability reference range,
+        CE cost, description, effect or mastery note. Built-in attacks cannot evolve.
+      parameters:
+      - name: campaignId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[a-zA-Z0-9_-]{1,80}$
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - ability_id
+              - reason
+              - evidence_ids
+              properties:
                 ability_id:
                   type: string
-                  default: basic_attack
-              additionalProperties: false
-      responses:
-        '200':
-          description: Combat action resolved
-      description: Resolve one combat action and save a pre-action snapshot so an
-        immediate player-requested overwrite reroll can safely replace it.
-  /campaigns/{campaignId}/check/reroll:
-    post:
-      operationId: rerollLastCheck
-      summary: Reroll and replace the latest standalone attribute check
-      description: Uses the saved actor, attribute, DC and modifiers from the latest
-        standalone check and generates a new authoritative roll.
-      parameters:
-      - name: campaignId
-        in: path
-        required: true
-        schema:
-          type: string
-          pattern: ^[a-zA-Z0-9_-]{1,80}$
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                expected_check_id:
+                reason:
                   type: string
-                  description: Optional safety check. Omit when simply rerolling the
-                    latest check.
-              additionalProperties: false
-      responses:
-        '200':
-          description: Latest check rerolled and replaced
-        '400':
-          description: No rerollable check or check ID mismatch
-  /campaigns/{campaignId}/combat/action/reroll:
-    post:
-      operationId: rerollLastCombatAction
-      summary: Undo and reroll the latest combat action
-      description: Restores the pre-action HP, CE, actors and turn state, then resolves
-        the same action again. Fails if later mechanical state changes exist.
-      parameters:
-      - name: campaignId
-        in: path
-        required: true
-        schema:
-          type: string
-          pattern: ^[a-zA-Z0-9_-]{1,80}$
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                expected_action_id:
+                evidence_ids:
+                  type: array
+                  minItems: 1
+                  maxItems: 10
+                  items:
+                    type: string
+                new_name:
                   type: string
-                  description: Optional safety check. Omit when rerolling the latest
-                    combat action.
+                damage_min:
+                  type: integer
+                  minimum: 1
+                  maximum: 120
+                damage_max:
+                  type: integer
+                  minimum: 1
+                  maximum: 120
+                ce_cost:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                new_effect_kind:
+                  type: string
+                new_description:
+                  type: string
+                mastery_note:
+                  type: string
               additionalProperties: false
       responses:
         '200':
-          description: Latest combat action restored and rerolled
-        '400':
-          description: No rerollable action or action ID mismatch
-        '409':
-          description: Later mechanical state makes overwrite unsafe
+          description: Ability evolved
 components:
   schemas: {}
   securitySchemes:
