@@ -248,7 +248,7 @@ export function normalizePlayerSetup(input = {}, existingPlayer = null) {
 }
 
 export function applyPlayerSetup(state, input = {}) {
-  state.player = normalizePlayerSetup(input, state.player);
+  state.player = preserveFields(state.player, normalizePlayerSetup(input, state.player));
   return state.player;
 }
 
@@ -265,12 +265,12 @@ function normalizeEngineMeta(input = {}) {
 function normalizeGrowth(input = {}) {
   const growth = input && typeof input === "object" && !Array.isArray(input) ? input : {};
   return {
-    ledger: Array.isArray(growth.ledger) ? growth.ledger.slice(-120) : [],
-    history: Array.isArray(growth.history) ? growth.history.slice(-120) : []
+    ledger: Array.isArray(growth.ledger) ? growth.ledger : [],
+    history: Array.isArray(growth.history) ? growth.history : []
   };
 }
 
-export function createDefaultState(seed = {}) {
+function normalizedDefaultState(seed = {}) {
   const oldPlayer = seed.player || {};
   const oldAttributes = oldPlayer.attributes || {};
   const oldResources = oldPlayer.resources || {};
@@ -331,6 +331,29 @@ export function createDefaultState(seed = {}) {
     growth: normalizeGrowth(seed.growth),
     engine_meta: normalizeEngineMeta(seed.engine_meta)
   };
+}
+
+// Keep unrecognized/legacy JSON fields when overlaying the normalized mechanics.
+// API projections never enter this path, and loading must not prune archives.
+function preserveFields(original, normalized) {
+  if (!original || !normalized || typeof original !== "object" || typeof normalized !== "object" ||
+      Array.isArray(original) || Array.isArray(normalized)) return normalized;
+  return Object.fromEntries([...new Set([...Object.keys(original), ...Object.keys(normalized)])].map((key) => [
+    key, Object.hasOwn(normalized, key) ? preserveFields(original[key], normalized[key]) : original[key]
+  ]));
+}
+
+export function createDefaultState(seed = {}) {
+  const normalized = preserveFields(seed, normalizedDefaultState(seed));
+  // Persisted V3 descriptive content is already saved: loading/restoring it must
+  // not reapply creation-time text limits. Numeric normalization stays unchanged.
+  if (seed.schema_version === RULES.schema_version && seed.player?.profile) {
+    normalized.player.profile = preserveFields(normalized.player.profile, seed.player.profile);
+  }
+  if (seed.schema_version === RULES.schema_version && typeof seed.player?.narrative_position === "string") {
+    normalized.player.narrative_position = seed.player.narrative_position;
+  }
+  return normalized;
 }
 
 export function normalizeRecord(raw, campaignId) {

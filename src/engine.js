@@ -426,7 +426,6 @@ export function updateEntityState(state, {
       note: String(note).trim().slice(0, 300),
       recorded_at: new Date().toISOString()
     });
-    target.state_notes = target.state_notes.slice(-20);
   }
 
   return {
@@ -439,7 +438,8 @@ export function updateEntityState(state, {
 
 function growthEvidenceMap(state) {
   const growth = ensureGrowthState(state);
-  return new Map(growth.ledger.map((item) => [item.evidence_id, item]));
+  // Archive every record, but retain the original gameplay eligibility window.
+  return new Map(growth.ledger.slice(-GROWTH_LIMITS.ledger_max_entries).map((item) => [item.evidence_id, item]));
 }
 
 function requireUnusedEvidence(state, evidenceIds) {
@@ -491,7 +491,6 @@ export function recordGrowthEvidence(state, {
   };
 
   growth.ledger.push(evidence);
-  growth.ledger = growth.ledger.slice(-GROWTH_LIMITS.ledger_max_entries);
   return evidence;
 }
 
@@ -605,7 +604,6 @@ export function applyCharacterGrowth(state, {
 
   for (const item of evidence) item.consumed_by = event.growth_id;
   growth.history.push(event);
-  growth.history = growth.history.slice(-GROWTH_LIMITS.history_max_entries);
 
   return event;
 }
@@ -663,7 +661,6 @@ export function evolveAbility(state, {
   ability.mastery_notes = Array.isArray(ability.mastery_notes) ? ability.mastery_notes : [];
   if (String(mastery_note || "").trim()) {
     ability.mastery_notes.push(String(mastery_note).trim().slice(0, 300));
-    ability.mastery_notes = ability.mastery_notes.slice(-20);
   }
 
   ability.evolution_history = Array.isArray(ability.evolution_history)
@@ -696,7 +693,6 @@ export function evolveAbility(state, {
   };
 
   ability.evolution_history.push(evolution);
-  ability.evolution_history = ability.evolution_history.slice(-50);
 
   const growth = ensureGrowthState(state);
   for (const item of evidence) item.consumed_by = evolution.evolution_id;
@@ -708,7 +704,6 @@ export function evolveAbility(state, {
     evidence_ids: evolution.evidence_ids,
     applied_at: evolution.applied_at
   });
-  growth.history = growth.history.slice(-GROWTH_LIMITS.history_max_entries);
 
   return evolution;
 }
