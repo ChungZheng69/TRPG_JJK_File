@@ -3,7 +3,8 @@ info:
   title: JJK TRPG Narrative Engine API
   version: 3.0.0
   description: Persistent JJK TRPG backend. V3 uses AI-led narrative combat, authoritative
-    dice and saved HP/CE, plus milestone growth.
+    dice and saved HP/CE, plus milestone growth. Action responses are bounded compact
+    views; full campaign data stays in PostgreSQL. Use readCampaignSection for omitted context.
 servers:
 - url: https://trpg-jjk-file.onrender.com
 security:
@@ -12,7 +13,10 @@ paths:
   /campaigns/{campaignId}:
     get:
       operationId: loadCampaignContext
-      summary: Load the authoritative campaign state
+      summary: Load compact authoritative campaign context
+      description: Returns a bounded partial state view. Numeric values are authoritative.
+        Check context.omitted_sections and use readCampaignSection for missing content;
+        an omitted field is not empty or deleted. Mutation actions return results without full state.
       parameters:
       - name: campaignId
         in: path
@@ -22,9 +26,61 @@ paths:
           pattern: ^[a-zA-Z0-9_-]{1,80}$
       responses:
         '200':
-          description: Campaign loaded
+          description: Compact campaign context loaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignContext'
         '404':
           description: Campaign does not exist
+  /campaigns/{campaignId}/sections:
+    get:
+      operationId: readCampaignSection
+      summary: Read a lossless bounded page of saved campaign JSON
+      description: Retrieve omitted context using a JSON Pointer such as /state/quests
+        or /state/entities/abilities/ability_id. Concatenate serialized_json chunks in
+        offset order, then parse the completed JSON. Follow next_offset until null.
+        Pass the first page's updated_at as expected_updated_at on subsequent pages.
+        On CAMPAIGN_CHANGED restart at offset zero. No data is changed by this operation.
+      parameters:
+      - name: campaignId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[a-zA-Z0-9_-]{1,80}$
+      - name: pointer
+        in: query
+        schema:
+          type: string
+          maxLength: 512
+          default: /state
+      - name: offset
+        in: query
+        description: UTF-16 offset returned in next_offset; start at zero.
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - name: expected_updated_at
+        in: query
+        description: Required when offset is greater than zero; use updated_at from page one.
+        schema:
+          type: string
+          format: date-time
+      responses:
+        '200':
+          description: One bounded JSON text page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignSection'
+        '400':
+          description: Invalid pointer, offset, or missing page version
+        '404':
+          description: Campaign or section does not exist
+        '409':
+          description: Campaign changed during retrieval; restart at offset zero
   /campaigns/{campaignId}/character/create:
     post:
       operationId: createCharacterCampaign
@@ -130,6 +186,10 @@ paths:
       responses:
         '201':
           description: Character campaign created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionResult'
         '400':
           description: Invalid character data
         '409':
@@ -187,12 +247,17 @@ paths:
       responses:
         '200':
           description: Player updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionResult'
   /campaigns/{campaignId}/narrative:
     patch:
       operationId: updateCampaignNarrative
       summary: Update narrative-only campaign memory
       description: Save scene, quests, relationships, flags, facts, recent events,
-        canon changes or rolling summary. Do not use for mechanical stats.
+        canon changes or rolling summary. Do not use for mechanical stats. Returns
+        success, campaign_id, updated_at and changed_fields without echoing state.
       parameters:
       - name: campaignId
         in: path
@@ -255,6 +320,10 @@ paths:
       responses:
         '200':
           description: Narrative memory updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionResult'
   /campaigns/{campaignId}/check:
     post:
       operationId: runAttributeCheck
@@ -307,6 +376,10 @@ paths:
       responses:
         '200':
           description: Check resolved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionResult'
   /campaigns/{campaignId}/check/reroll:
     post:
       operationId: rerollLastCheck
@@ -333,6 +406,10 @@ paths:
       responses:
         '200':
           description: Latest check rerolled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionResult'
   /campaigns/{campaignId}/resources/change:
     post:
       operationId: applyResourceChange
@@ -375,6 +452,10 @@ paths:
       responses:
         '200':
           description: Resource changed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionResult'
   /campaigns/{campaignId}/enemies:
     post:
       operationId: createDynamicEnemy
@@ -424,6 +505,10 @@ paths:
       responses:
         '200':
           description: Enemy created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionResult'
   /campaigns/{campaignId}/abilities:
     post:
       operationId: createDynamicAbility
@@ -502,6 +587,10 @@ paths:
       responses:
         '200':
           description: Ability created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionResult'
   /campaigns/{campaignId}/entities/state:
     patch:
       operationId: updateEntityState
@@ -538,6 +627,10 @@ paths:
       responses:
         '200':
           description: Entity state updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionResult'
   /campaigns/{campaignId}/growth/evidence:
     post:
       operationId: recordGrowthEvidence
@@ -587,6 +680,10 @@ paths:
       responses:
         '200':
           description: Growth evidence recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionResult'
   /campaigns/{campaignId}/growth/apply:
     post:
       operationId: applyCharacterGrowth
@@ -656,6 +753,10 @@ paths:
       responses:
         '200':
           description: Character growth applied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionResult'
   /campaigns/{campaignId}/abilities/evolve:
     patch:
       operationId: evolveAbility
@@ -714,8 +815,75 @@ paths:
       responses:
         '200':
           description: Ability evolved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionResult'
 components:
-  schemas: {}
+  schemas:
+    CampaignContext:
+      type: object
+      required: [campaign_id, updated_at, view, state, context]
+      properties:
+        campaign_id:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+        view:
+          type: string
+          enum: [compact]
+        state:
+          type: object
+          additionalProperties: true
+        context:
+          type: object
+          required: [partial, omitted_sections, retrieve_with]
+          properties:
+            partial:
+              type: boolean
+            omitted_sections:
+              type: array
+              items:
+                type: string
+            retrieve_with:
+              type: string
+              enum: [readCampaignSection]
+    CampaignSection:
+      type: object
+      required: [campaign_id, updated_at, pointer, offset, next_offset, total_utf16_units, serialized_json]
+      properties:
+        campaign_id:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+        pointer:
+          type: string
+        offset:
+          type: integer
+        next_offset:
+          type: [integer, 'null']
+        total_utf16_units:
+          type: integer
+        serialized_json:
+          type: string
+    ActionResult:
+      type: object
+      required: [success, campaign_id, updated_at]
+      properties:
+        success:
+          type: boolean
+        campaign_id:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+        changed_fields:
+          type: array
+          items:
+            type: string
+      additionalProperties: true
   securitySchemes:
     bearerAuth:
       type: http

@@ -7,7 +7,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "test": "node --test"
   },
   "engines": {
     "node": ">=20"
@@ -16,5 +17,8 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "yaml": "^2.9.1"
   }
 }
