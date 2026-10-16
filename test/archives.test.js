@@ -30,3 +30,17 @@ test("growth and ability mutations retain archives beyond their old retention li
   assert.deepEqual(state.entities.abilities.custom.evolution_history.slice(0, 60), originalEvolutions);
   assert.deepEqual(normalizeRecord({ state }, "fixture").state, state);
 });
+
+test("archived growth evidence remains saved without changing the original eligibility window", () => {
+  const state = createDefaultState({ growth: { ledger: Array.from({ length: 130 }, (_, index) => ({
+    evidence_id: `evidence_${index}`, category: "physical", consumed_by: null
+  })) } });
+  const args = { evidence_ids: ["evidence_0"], reason: "Test", physical_delta: 1 };
+  assert.throws(() => applyCharacterGrowth(state, args), { message: "GROWTH_EVIDENCE_NOT_FOUND" });
+  assert.equal(state.growth.ledger[0].evidence_id, "evidence_0");
+  const growth = applyCharacterGrowth(state, { ...args, evidence_ids: ["evidence_129"] });
+  assert.equal(growth.after.physical, growth.before.physical + 1);
+  assert.throws(() => applyCharacterGrowth(state, { ...args, evidence_ids: ["evidence_129"] }), { message: "GROWTH_EVIDENCE_ALREADY_USED" });
+  assert.throws(() => applyCharacterGrowth(state, { ...args, evidence_ids: ["evidence_128"], physical_delta: 11 }), { message: "INVALID_GROWTH_DELTA" });
+  assert.equal(state.growth.ledger.length, 130);
+});

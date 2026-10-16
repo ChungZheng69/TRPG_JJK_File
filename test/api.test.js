@@ -54,6 +54,7 @@ async function request(path, { method = "GET", body, authorized = true, raw } = 
 function assertSmall(response) {
   const size = jsonSize(response.text);
   assert.ok(size.characters <= RESPONSE_LIMITS.characters, `characters: ${size.characters}`);
+  assert.ok(size.utf16_units <= RESPONSE_LIMITS.characters, `UTF-16 units: ${size.utf16_units}`);
   assert.ok(size.bytes <= RESPONSE_LIMITS.bytes, `bytes: ${size.bytes}`);
 }
 function largeState() {
@@ -125,6 +126,12 @@ test("all Action mutation routes return small results and preserve archive field
     assert.equal(response.status, 200, `${path}: ${response.text}`);
     assertSmall(response);
     assert.equal(Object.hasOwn(response.body, "state"), false);
+    if (path === "resources/change") {
+      assert.deepEqual(response.body.updated.entity.resources, { hp: { current: 40, max: 90 }, ce: { current: 30, max: 70 } });
+      assert.deepEqual(Object.keys(response.body.updated.entity).sort(), ["id", "resources"]);
+    }
+    if (path === "abilities") assert.ok(response.body.updated.owner.ability_ids.includes(response.body.ability.id));
+    if (path === "check/reroll") assert.equal(response.body.updated.last_check.reroll_count, 1);
   }
   assert.equal(records.get("large").state.player.resources.hp.current, 40);
   assert.deepEqual(records.get("large").state.logs, fixture.logs);
@@ -136,6 +143,7 @@ test("all Action mutation routes return small results and preserve archive field
   assert.equal(growth.status, 200, growth.text);
   assertSmall(growth);
   assert.equal(growth.body.growth.after.physical, 81);
+  assert.equal(growth.body.updated.player.attributes.physical.value, 81);
   const abilityEvidence = await request("/campaigns/large/growth/evidence", { method: "POST", body: {
     category: "ability", note: "Synthetic ability practice", related_ability_id: "synthetic"
   } });
@@ -146,6 +154,7 @@ test("all Action mutation routes return small results and preserve archive field
   assert.equal(evolution.status, 200, evolution.text);
   assertSmall(evolution);
   assert.equal(Object.hasOwn(evolution.body, "state"), false);
+  assert.equal(evolution.body.updated.ability.name, "Refined synthetic");
 });
 
 test("section pages reconstruct escaped Unicode JSON exactly and reject stale versions", async () => {
@@ -226,6 +235,95 @@ test("budget also holds for pathological player and entity fields", () => {
   assert.deepEqual(context.state.player.resources, state.player.resources);
   assert.equal(context.context.partial, true);
   assert.deepEqual(state.player.inventory, [privateText]);
+  assert.ok(context.state.rolling_summary.length > 0);
+  assert.ok(context.state.rolling_summary.length <= 1000);
+  assert.ok(context.state.important_facts.length > 0);
+  assert.ok(context.state.recent_events.length > 0);
+});
+
+test("compact context selects active enemies and referenced abilities and keeps current play data", async () => {
+  const state = realStorage.createDefaultState({
+    player: { name: "Current", ability_ids: ["player_spell"], attributes: { physical: 65, technique: 40, mind: 80 },
+      resources: { hp: { current: 19, max: 70 }, ce: { current: 11, max: 55 } }, status: ["injured"] },
+    scene: { date_time: "2018-06-02", location: "Current scene", situation: "A current threat", present_npcs: ["present"] },
+    important_facts: ["A current promise"], rolling_summary: "Current summary",
+    recent_events: Array.from({ length: 20 }, (_, index) => `event${index}`),
+    entities: {
+      enemies: {
+        defeated: { id: "defeated", resources: { hp: { current: 0, max: 30 } }, ability_ids: ["unused"] },
+        inactive: { id: "inactive", active: false, ability_ids: ["unused"] },
+        active: { id: "active", attributes: { physical: { value: 60, max: 100 } },
+          resources: { hp: { current: 27, max: 30 }, ce: { current: 5, max: 10 } }, status: ["staggered"], ability_ids: ["enemy_spell"] }
+      },
+      npcs: { present: { id: "present", name: "Present NPC", ability_ids: ["npc_spell"] }, absent: { id: "absent" } },
+      abilities: Object.fromEntries(["unused", "player_spell", "enemy_spell", "npc_spell"].map((id) => [id, { id, name: id, ce_cost: 3 }]))
+    }
+  });
+  records.set("current", { campaign_id: "current", updated_at: "2026-10-16T00:00:00.000Z", state: clone(state) });
+  const response = await request("/campaigns/current");
+  assertSmall(response);
+  const context = response.body.state;
+  assert.deepEqual(context.player.resources, state.player.resources);
+  assert.deepEqual(context.player.attributes, state.player.attributes);
+  assert.deepEqual(context.player.status, ["injured"]);
+  assert.deepEqual(context.scene, state.scene);
+  assert.deepEqual(context.important_facts, state.important_facts);
+  assert.equal(context.rolling_summary, "Current summary");
+  assert.deepEqual(context.recent_events, state.recent_events.slice(-10));
+  assert.deepEqual(Object.keys(context.entities.enemies), ["active"]);
+  assert.deepEqual(context.entities.enemies.active.resources, state.entities.enemies.active.resources);
+  assert.deepEqual(context.entities.enemies.active.status, ["staggered"]);
+  assert.deepEqual(Object.keys(context.entities.abilities).sort(), ["basic_attack", "enemy_spell", "npc_spell", "player_spell"]);
+  assert.deepEqual(Object.keys(context.entities.npcs), ["present"]);
+  assert.deepEqual(records.get("current").state, state);
+});
+
+test("authenticated history pages restore all older records without writing the campaign", async () => {
+  const history = Array.from({ length: 140 }, (_, index) => ({ index, note: `old-event-${index}:秘密🙂`.repeat(8) }));
+  const record = { campaign_id: "history", updated_at: "2026-10-16T00:00:00.000Z",
+    state: realStorage.createDefaultState({ narrative_history: history, recent_events: ["recent"], growth: { ledger: history, history } }) };
+  records.set("history", clone(record));
+  for (const collection of ["narrative_history", "growth_history", "growth_ledger"]) {
+    const items = [];
+    let offset = 0;
+    let pages = 0;
+    do {
+      const response = await request(`/campaigns/history/history?collection=${collection}&offset=${offset}&expected_updated_at=${record.updated_at}`);
+      assert.equal(response.status, 200);
+      assertSmall(response);
+      items.push(...response.body.items.map((item) => {
+        assert.equal(item.partial, false);
+        return item.value;
+      }));
+      offset = response.body.next_offset;
+      pages++;
+    } while (offset !== null);
+    assert.ok(pages > 1);
+    assert.deepEqual(items, history);
+  }
+  assert.deepEqual(records.get("history"), record);
+  assert.equal((await request("/campaigns/history/history", { authorized: false })).status, 401);
+  assert.equal((await request("/campaigns/history/history?collection=__proto__")).status, 400);
+  assert.equal((await request("/campaigns/history/history?offset=10")).status, 400);
+  assert.equal((await request("/campaigns/history/history?limit=21")).status, 400);
+  assert.equal((await request("/campaigns/history/history?limit=0")).status, 400);
+  assert.equal((await request("/campaigns/history/history?expected_updated_at=stale")).status, 409);
+  const large = await request("/campaigns/large/history?collection=recent_events&limit=20");
+  assert.equal(large.status, 200);
+  assertSmall(large);
+  assert.ok(large.body.items[0].partial);
+  assert.equal(large.body.items[0].pointer, "/state/recent_events/0");
+  assert.equal(records.get("large").state.recent_events[0], fixture.recent_events[0]);
+  let original = "";
+  let offset = 0;
+  do {
+    const response = await request(`/campaigns/large/sections?pointer=${large.body.items[0].pointer}&offset=${offset}&expected_updated_at=${large.body.updated_at}`);
+    assert.equal(response.status, 200);
+    assertSmall(response);
+    original += response.body.serialized_json;
+    offset = response.body.next_offset;
+  } while (offset !== null);
+  assert.equal(JSON.parse(original), fixture.recent_events[0]);
 });
 
 test("operation IDs match every OpenAPI Action", async () => {
@@ -245,5 +343,9 @@ test("operation IDs match every OpenAPI Action", async () => {
     }
   }
   assert.equal(new Set(operationIds).size, operationIds.length);
+  const originalIds = ["loadCampaignContext", "createCharacterCampaign", "updatePlayerCharacter", "updateCampaignNarrative",
+    "runAttributeCheck", "rerollLastCheck", "applyResourceChange", "createDynamicEnemy", "createDynamicAbility", "updateEntityState",
+    "recordGrowthEvidence", "applyCharacterGrowth", "evolveAbility"];
+  for (const id of originalIds) assert.ok(operationIds.includes(id), `Original operationId changed: ${id}`);
   assert.equal(Object.values(api.paths).some((methods) => methods.get?.operationId === "exportCampaign"), false);
 });

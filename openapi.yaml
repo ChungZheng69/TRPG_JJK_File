@@ -15,6 +15,9 @@ paths:
       operationId: loadCampaignContext
       summary: Load compact authoritative campaign context
       description: Returns a bounded partial state view. Numeric values are authoritative.
+        Prioritizes current player resources and attributes, scene, active enemies,
+        abilities referenced by the player and active entities, statuses, facts,
+        latest events and a rolling summary preview of at most 1000 UTF-16 units.
         Check context.omitted_sections and use readCampaignSection for missing content;
         an omitted field is not empty or deleted. Mutation actions return results without full state.
       parameters:
@@ -79,6 +82,68 @@ paths:
           description: Invalid pointer, offset, or missing page version
         '404':
           description: Campaign or section does not exist
+        '409':
+          description: Campaign changed during retrieval; restart at offset zero
+  /campaigns/{campaignId}/history:
+    get:
+      operationId: readCampaignHistory
+      summary: Retrieve a bounded page of older saved narrative or growth history
+      description: A separate read-only endpoint requiring bearer authentication.
+        Returns records from the full stored collection, including entries omitted
+        from compact context. Each item has its original index, value and JSON Pointer.
+        Oversized items have partial=true; use readCampaignSection with the item's
+        pointer for lossless full content. Follow next_offset until null; pass page one's
+        updated_at as expected_updated_at on subsequent requests. On a 409 restart
+        at offset zero. This operation never prunes history or writes a campaign.
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: campaignId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[a-zA-Z0-9_-]{1,80}$
+      - name: collection
+        in: query
+        schema:
+          type: string
+          enum: [recent_events, narrative_history, important_facts, canon_changes, growth_history, growth_ledger, logs]
+          default: recent_events
+      - name: offset
+        in: query
+        description: Record index returned in next_offset; start at zero.
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - name: limit
+        in: query
+        description: Maximum records per page; the response budget can reduce this count.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 20
+          default: 10
+      - name: expected_updated_at
+        in: query
+        description: Required when offset is greater than zero; use updated_at from page one.
+        schema:
+          type: string
+          format: date-time
+      responses:
+        '200':
+          description: One bounded page from the complete historical collection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignHistory'
+        '400':
+          description: Invalid collection or offset, or missing page version
+        '401':
+          description: Missing or invalid bearer authentication
+        '404':
+          description: Campaign or history collection does not exist
         '409':
           description: Campaign changed during retrieval; restart at offset zero
   /campaigns/{campaignId}/character/create:
@@ -849,6 +914,13 @@ components:
             retrieve_with:
               type: string
               enum: [readCampaignSection]
+            selection:
+              type: object
+              properties:
+                active_enemy_count:
+                  type: integer
+                relevant_ability_count:
+                  type: integer
     CampaignSection:
       type: object
       required: [campaign_id, updated_at, pointer, offset, next_offset, total_utf16_units, serialized_json]
@@ -868,6 +940,36 @@ components:
           type: integer
         serialized_json:
           type: string
+    CampaignHistory:
+      type: object
+      required: [campaign_id, updated_at, collection, offset, total_items, next_offset, items]
+      properties:
+        campaign_id:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+        collection:
+          type: string
+        offset:
+          type: integer
+        total_items:
+          type: integer
+        next_offset:
+          type: [integer, 'null']
+        items:
+          type: array
+          items:
+            type: object
+            required: [index, value, partial, pointer]
+            properties:
+              index:
+                type: integer
+              value: {}
+              partial:
+                type: boolean
+              pointer:
+                type: string
     ActionResult:
       type: object
       required: [success, campaign_id, updated_at]
@@ -883,6 +985,11 @@ components:
           type: array
           items:
             type: string
+        updated:
+          type: object
+          description: Only the relevant changed entity, owner ability IDs, player sheet,
+            ability or last-check metadata; never the full saved campaign state.
+          additionalProperties: true
       additionalProperties: true
   securitySchemes:
     bearerAuth:

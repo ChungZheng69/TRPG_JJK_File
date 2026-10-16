@@ -438,7 +438,8 @@ export function updateEntityState(state, {
 
 function growthEvidenceMap(state) {
   const growth = ensureGrowthState(state);
-  return new Map(growth.ledger.map((item) => [item.evidence_id, item]));
+  // Archive every record, but retain the original gameplay eligibility window.
+  return new Map(growth.ledger.slice(-GROWTH_LIMITS.ledger_max_entries).map((item) => [item.evidence_id, item]));
 }
 
 function requireUnusedEvidence(state, evidenceIds) {

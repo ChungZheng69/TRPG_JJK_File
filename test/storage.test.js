@@ -33,6 +33,8 @@ test("Postgres persistence retains archives and unknown nested fields through lo
     custom_extension: { saved: true },
     engine_meta: { custom_archive: "retain" }
   });
+  state.player.profile.appearance = "Saved descriptive history 秘密🙂".repeat(200);
+  state.player.narrative_position = "Saved narrative position ".repeat(200);
   await storage.saveState("fixture", state);
   const loaded = await storage.loadCampaign("fixture");
   assert.deepEqual(loaded.state, state);
@@ -44,6 +46,8 @@ test("Postgres persistence retains archives and unknown nested fields through lo
   assert.equal(restored.state.growth.history.length, 150);
   assert.equal(restored.state.player.custom_profile_field.archived, true);
   assert.equal(restored.state.engine_meta.custom_archive, "retain");
+  assert.equal(restored.state.player.profile.appearance, state.player.profile.appearance);
+  assert.equal(restored.state.player.narrative_position, state.player.narrative_position);
   assert.ok(calls.filter((call) => call.sql.includes("INSERT")).every((call) => typeof call.args[2] === "string"));
   assert.equal(calls.some((call) => /DELETE|ALTER TABLE|DROP TABLE/i.test(call.sql)), false);
 });

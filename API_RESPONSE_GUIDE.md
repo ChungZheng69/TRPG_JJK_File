@@ -35,14 +35,21 @@ including JSON escaping and the response envelope. These are conservative projec
 budgets, not a claim about a particular external platform's limit.
 
 - `loadCampaignContext` keeps `campaign_id`, `updated_at`, and `state`, and adds
-  `view: "compact"` and `context`. Player mechanics have priority. History is
-  omitted; recent events show at most the latest ten. Large fields or collections
-  that do not fit are omitted without changing the values that are returned.
+  `view: "compact"` and `context`. Player mechanics have priority. The view includes
+  current scene, statuses, facts, recent events, and a rolling summary preview of
+  at most 1,000 UTF-16 units. Large descriptive fields have bounded previews.
+  History stays outside this view, and recent events show at most the latest ten.
+  Active enemies exclude explicitly inactive and zero-HP enemies; an explicit
+  `scene.active_enemy_ids` list takes priority when present. Abilities are selected
+  from the player, active enemies and present NPCs rather than save insertion order.
+  Large collections can still be partial and must be retrieved when needed.
 - `context.partial` and `context.omitted_sections` explicitly identify incomplete
   sections. Missing fields are **not empty, reset, or deleted**.
 - All Action mutations return `success`, `campaign_id`, `updated_at`, and their
   operation result, without a full `state`. Narrative updates return
-  `changed_fields`. A large operation result is also bounded and marked in
+  `changed_fields`. Relevant `updated` fields report entity resources/status,
+  last-check metadata, ability owner IDs or the resulting player/ability sheet.
+  A large operation result is also bounded and marked in
   `response_context` when fields/history are omitted.
 - `readCampaignSection` retrieves any saved field by JSON Pointer, for example
   `/state/important_facts`, `/state/growth/history` or
@@ -56,6 +63,20 @@ in order and JSON-parse the result when `next_offset` is null. Offsets are UTF-1
 units and chunks do not split surrogate pairs. A 409 `CAMPAIGN_CHANGED` means
 restart at zero. Retrieve specific fields/entities rather than the entire save
 when only a small part is needed.
+
+`readCampaignHistory` (`GET /campaigns/:campaignId/history`) is a separate route
+protected independently by the existing bearer authentication. It requires the
+same API key, without introducing another credential or database schema change.
+Choose `collection=recent_events`, `narrative_history`, `important_facts`,
+`canon_changes`, `growth_history`, `growth_ledger` or `logs`. It reads all saved
+records, including records older than the compact view's latest events.
+
+History pagination uses **record indexes**, unlike section pagination's UTF-16
+offsets. Start with `offset=0` and `limit=10` (maximum 20); follow `next_offset`,
+passing the first page's `updated_at` as `expected_updated_at`. Each item has its
+original `index`, `value`, `partial` flag and JSON `pointer`. If one record is too
+large for a page, its value is previewed and `partial=true`; pass its pointer to
+`readCampaignSection` for full lossless content. Pagination never writes a save.
 
 Normal narrative PATCH behavior is unchanged: supplied fields replace those
 fields and unspecified fields remain saved. A caller must never send the compact
@@ -95,6 +116,10 @@ No campaign deletion, database schema migration or new database column is part o
 this change. All archive collections continue to live in the existing JSONB state.
 Combat calculations and growth eligibility/balance rules are unchanged. Full saves
 will grow over time; this patch bounds API output rather than discarding history.
+In particular, all evidence remains archived, while only the most recent 120
+ledger records remain eligible for growth, preserving the existing gameplay
+window. Persisted V3 profile and narrative-position text also survives loading and
+restoration without reapplying creation-time text limits.
 
 ## Validation and rollout
 
@@ -102,14 +127,15 @@ Run `npm ci` and `npm test` on Node 20 or newer. Tests use synthetic campaigns a
 a mocked PostgreSQL query boundary; they never connect to Neon or access real
 campaign saves. Coverage includes multi-megabyte saves, every Action mutation,
 Unicode/escaping, privacy, errors/auth, archive retention, section reconstruction,
-stale-version rejection, and full export/restore.
+history pagination, stale-version rejection, full export/restore, HP/CE clamps,
+dice/reroll behavior and the existing growth eligibility window.
 
-The 11-test suite passes after a clean `npm ci`. One synthetic fixture measured:
+The 16-test suite passes. The lockfile also supports a clean `npm ci`. One synthetic fixture measured:
 
 | Response | Unicode characters | UTF-8 bytes |
 | --- | ---: | ---: |
 | Original full campaign load | 5,363,033 | 6,805,123 |
-| Compact campaign load | 1,807 | 1,897 |
+| Compact campaign load with descriptive previews | 4,594 | 5,412 |
 | Narrative update acknowledgement | 115 | 115 |
 
 The compact load marks omitted sections; the full fixture is retained and its

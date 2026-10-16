@@ -2,7 +2,7 @@ import "dotenv/config";
 import express from "express";
 import { pathToFileURL } from "node:url";
 import * as defaultStorage from "./src/storage.js";
-import { campaignContext, campaignSection, mutationResponse } from "./src/api-responses.js";
+import { campaignContext, campaignHistory, campaignSection, HISTORY_SECTIONS, mutationResponse } from "./src/api-responses.js";
 import { ACTION_OPERATIONS, requestLogging } from "./src/request-logging.js";
 import {
   applyCharacterGrowth,
@@ -204,7 +204,7 @@ export function createApp({ storage = defaultStorage, apiKey = process.env.TRPG_
       record.updated_at = new Date().toISOString();
       await writeCampaign(campaignId, record);
 
-      return res.json(mutationResponse(campaignId, record.updated_at, output));
+      return res.json(mutationResponse(campaignId, record.updated_at, output, record.state));
     } catch (error) {
       return sendEngineError(res, error);
     }
@@ -243,12 +243,19 @@ export function createApp({ storage = defaultStorage, apiKey = process.env.TRPG_
     }
   });
 
-  app.get("/campaigns/:campaignId/sections", requireApiKey, async (req, res) => {
+  async function sendSavedSection(req, res) {
     const { campaignId } = req.params;
-    const pointer = req.query.pointer ?? "/state";
+    const isHistory = req.route.path === "/campaigns/:campaignId/history";
+    const collection = req.query.collection ?? "recent_events";
+    if (isHistory && (typeof collection !== "string" || !Object.hasOwn(HISTORY_SECTIONS, collection))) {
+      return res.status(400).json({ error: "INVALID_HISTORY_COLLECTION" });
+    }
+    const pointer = isHistory ? HISTORY_SECTIONS[collection] : req.query.pointer ?? "/state";
     const offsetText = req.query.offset ?? "0";
+    const limitText = req.query.limit ?? "10";
     if (!validId(campaignId) || typeof pointer !== "string" || pointer.length > 512 ||
         typeof offsetText !== "string" || !/^\d{1,16}$/.test(offsetText) ||
+        (isHistory && (typeof limitText !== "string" || !/^\d{1,2}$/.test(limitText))) ||
         (Number(offsetText) > 0 && !req.query.expected_updated_at) ||
         (req.query.expected_updated_at !== undefined && typeof req.query.expected_updated_at !== "string")) {
       return res.status(400).json({ error: "INVALID_SECTION_REQUEST" });
@@ -259,14 +266,19 @@ export function createApp({ storage = defaultStorage, apiKey = process.env.TRPG_
       if (req.query.expected_updated_at && req.query.expected_updated_at !== record.updated_at) {
         return res.status(409).json({ error: "CAMPAIGN_CHANGED", message: "Restart section retrieval at offset 0." });
       }
-      const section = campaignSection(record, pointer, Number(offsetText));
+      const section = isHistory ? campaignHistory(record, collection, Number(offsetText), Number(limitText)) :
+        campaignSection(record, pointer, Number(offsetText));
       if (!section) return res.status(404).json({ error: "SECTION_NOT_FOUND" });
       return res.json(section);
     } catch (error) {
-      if (error.message === "INVALID_OFFSET") return res.status(400).json({ error: "INVALID_OFFSET" });
+      if (["INVALID_OFFSET", "INVALID_LIMIT", "HISTORY_NOT_A_COLLECTION"].includes(error.message)) return res.status(400).json({ error: error.message });
       return sendEngineError(res, error);
     }
-  });
+  }
+
+  app.get("/campaigns/:campaignId/sections", requireApiKey, sendSavedSection);
+  // A separate, authenticated route for archived narrative/growth information.
+  app.get("/campaigns/:campaignId/history", requireApiKey, sendSavedSection);
 
   // Full raw save for authenticated manual backup/recovery, excluded from Actions.
   app.get("/campaigns/:campaignId/export", requireApiKey, async (req, res) => {
@@ -323,7 +335,7 @@ export function createApp({ storage = defaultStorage, apiKey = process.env.TRPG_
       const scene = buildSceneFromFlatBody(req.body || {});
 
       if (scene) state.scene = { ...(state.scene || {}), ...scene };
-      return { player, state };
+      return { player, ...(scene ? { scene: state.scene } : {}) };
     });
   });
 
@@ -348,70 +360,61 @@ export function createApp({ storage = defaultStorage, apiKey = process.env.TRPG_
         }
       }
 
-      return { changed_fields: changed, state };
+      return { changed_fields: changed };
     });
   });
 
   app.post("/campaigns/:campaignId/check", requireApiKey, async (req, res) => {
     return withCampaign(req, res, async (state) => ({
-      check: runTrackedCheck(state, req.body || {}),
-      state
+      check: runTrackedCheck(state, req.body || {})
     }));
   });
 
   app.post("/campaigns/:campaignId/check/reroll", requireApiKey, async (req, res) => {
     return withCampaign(req, res, async (state) => ({
-      check: rerollLastCheck(state, req.body || {}),
-      state
+      check: rerollLastCheck(state, req.body || {})
     }));
   });
 
   app.post("/campaigns/:campaignId/resources/change", requireApiKey, async (req, res) => {
     return withCampaign(req, res, async (state) => ({
-      change: applyResourceOperation(state, req.body || {}),
-      state
+      change: applyResourceOperation(state, req.body || {})
     }));
   });
 
   app.post("/campaigns/:campaignId/enemies", requireApiKey, async (req, res) => {
     return withCampaign(req, res, async (state) => ({
-      enemy: createEnemy(state, req.body || {}),
-      state
+      enemy: createEnemy(state, req.body || {})
     }));
   });
 
   app.post("/campaigns/:campaignId/abilities", requireApiKey, async (req, res) => {
     return withCampaign(req, res, async (state) => ({
-      ability: createAbility(state, req.body || {}),
-      state
+      ability: createAbility(state, req.body || {})
     }));
   });
 
   app.patch("/campaigns/:campaignId/entities/state", requireApiKey, async (req, res) => {
     return withCampaign(req, res, async (state) => ({
-      entity_state: updateEntityState(state, req.body || {}),
-      state
+      entity_state: updateEntityState(state, req.body || {})
     }));
   });
 
   app.post("/campaigns/:campaignId/growth/evidence", requireApiKey, async (req, res) => {
     return withCampaign(req, res, async (state) => ({
-      evidence: recordGrowthEvidence(state, req.body || {}),
-      state
+      evidence: recordGrowthEvidence(state, req.body || {})
     }));
   });
 
   app.post("/campaigns/:campaignId/growth/apply", requireApiKey, async (req, res) => {
     return withCampaign(req, res, async (state) => ({
-      growth: applyCharacterGrowth(state, req.body || {}),
-      state
+      growth: applyCharacterGrowth(state, req.body || {})
     }));
   });
 
   app.patch("/campaigns/:campaignId/abilities/evolve", requireApiKey, async (req, res) => {
     return withCampaign(req, res, async (state) => ({
-      evolution: evolveAbility(state, req.body || {}),
-      state
+      evolution: evolveAbility(state, req.body || {})
     }));
   });
 

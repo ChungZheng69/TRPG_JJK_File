@@ -248,7 +248,7 @@ export function normalizePlayerSetup(input = {}, existingPlayer = null) {
 }
 
 export function applyPlayerSetup(state, input = {}) {
-  state.player = normalizePlayerSetup(input, state.player);
+  state.player = preserveFields(state.player, normalizePlayerSetup(input, state.player));
   return state.player;
 }
 
@@ -344,7 +344,16 @@ function preserveFields(original, normalized) {
 }
 
 export function createDefaultState(seed = {}) {
-  return preserveFields(seed, normalizedDefaultState(seed));
+  const normalized = preserveFields(seed, normalizedDefaultState(seed));
+  // Persisted V3 descriptive content is already saved: loading/restoring it must
+  // not reapply creation-time text limits. Numeric normalization stays unchanged.
+  if (seed.schema_version === RULES.schema_version && seed.player?.profile) {
+    normalized.player.profile = preserveFields(normalized.player.profile, seed.player.profile);
+  }
+  if (seed.schema_version === RULES.schema_version && typeof seed.player?.narrative_position === "string") {
+    normalized.player.narrative_position = seed.player.narrative_position;
+  }
+  return normalized;
 }
 
 export function normalizeRecord(raw, campaignId) {

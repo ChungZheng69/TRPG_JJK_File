@@ -46,6 +46,7 @@ export function requestLogging({ logger = console.log, operations = {} } = {}) {
 export const ACTION_OPERATIONS = Object.freeze({
   "GET /campaigns/:campaignId": "loadCampaignContext",
   "GET /campaigns/:campaignId/sections": "readCampaignSection",
+  "GET /campaigns/:campaignId/history": "readCampaignHistory",
   "GET /campaigns/:campaignId/export": "exportCampaign",
   "POST /campaigns/:campaignId/character/create": "createCharacterCampaign",
   "PATCH /campaigns/:campaignId/character": "updatePlayerCharacter",
